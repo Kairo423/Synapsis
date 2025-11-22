@@ -7,13 +7,12 @@ Create virtual enviroment python: `python -m venv venv`
 Install the required dependencies: `pip install -r properties.txt`
 Then open http://127.0.0.1:8000/docs in your browser
 
-# Docker rup
+# Docker run
 Open docker.desktop
-Сборка образа (из корня репозитория):
-`docker build -f app/backend/Dockerfile -t synapsis-backend:latest .`
-Запуск контейнера (простой запуск):
-`docker run --rm -p 8000:8000 --name synapsis-backend synapsis-backend:latest`
-
+`docker-compose up -d --build`
+`docker-compose up -d`
+To stop containers:
+`docker compose down`
 # Start frontend
 
 Run `cd app/frontend` to change directory. 

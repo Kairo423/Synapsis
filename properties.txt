@@ -1,16 +1,41 @@
-annotated-doc==0.0.4
-annotated-types==0.7.0
-anyio==4.11.0
-click==8.3.1
-colorama==0.4.6
+# Web Framework
 fastapi==0.121.3
-h11==0.16.0
-idna==3.11
+uvicorn==0.38.0
+starlette==0.50.0
+
+# Database
+SQLAlchemy==2.0.44
+alembic==1.17.2
+psycopg2-binary==2.9.9
+greenlet==3.2.4
+
+# Authentication & Security
+passlib==1.7.4
+python-jose[cryptography]==3.3.0
+cryptography==42.0.5
+email-validator==2.1.1
+
+# Pydantic & Types
 pydantic==2.12.4
 pydantic_core==2.41.5
-setuptools==65.5.0
-sniffio==1.3.1
-starlette==0.50.0
+annotated-types==0.7.0
 typing_extensions==4.15.0
 typing-inspection==0.4.2
-uvicorn==0.38.0
+
+# Environment & Config
+python-dotenv==1.2.1
+
+# HTTP & Async
+anyio==4.11.0
+h11==0.16.0
+sniffio==1.3.1
+idna==3.11
+
+# Templates & CLI
+Mako==1.3.10
+MarkupSafe==3.0.3
+click==8.3.1
+colorama==0.4.6
+
+# Documentation
+annotated-doc==0.0.4

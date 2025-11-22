@@ -14,5 +14,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Alembic
+alembic/versions/*
+!alembic/versions/.gitkeep
+
 # Игнорирование папки node_modules в frontend
 app/frontend/node_modules/
+
+# Игнорирование файла package-lock.json
+app/frontend/package-lock.json
