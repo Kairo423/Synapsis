@@ -32,4 +32,4 @@ class User(Base):
                 if key == 'password':
                     self.set_password(value)
                 else:
-                    setattr(self, key, value)    
+                    setattr(self, key, value)

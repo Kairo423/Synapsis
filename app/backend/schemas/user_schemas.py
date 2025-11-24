@@ -1,17 +1,16 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Enum
-from enum import Enum as PyEnum
+from enum import Enum
 
-class UserRole(PyEnum):
+class UserRole(str, Enum):
     CUSTOMER = "customer"
     EXECUTOR = "executor"
 
 class UserBase(BaseModel):
     email: EmailStr
     name: str
-    role: str
+    role: UserRole  # Используем Enum вместо str
 
 class UserCreate(UserBase):
     password: str
@@ -19,9 +18,9 @@ class UserCreate(UserBase):
 class UserResponse(UserBase):
     id: int
     avatar_url: Optional[str] = None
-    rating: float
-    balance: float
-    is_active: bool
+    rating: float = 0.0  # Добавляем значения по умолчанию
+    balance: float = 0.0
+    is_active: bool = True
     created_at: datetime
 
     class Config:
@@ -34,6 +33,6 @@ class UserLogin(BaseModel):
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     name: Optional[str] = None
-    role: Optional[str] = None
+    role: Optional[UserRole] = None  # Используем Enum
     password: Optional[str] = None
     avatar_url: Optional[str] = None

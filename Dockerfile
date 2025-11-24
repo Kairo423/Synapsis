@@ -30,5 +30,6 @@ RUN pip install --upgrade pip \
 EXPOSE 8000
 
 # Запуск Uvicorn. По умолчанию в продакшне --reload не включать оставить вторую команду.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+#CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 #CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "main.py"]

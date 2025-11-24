@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
-from models.user import User
-from schemas.user import UserCreate, UserResponse, UserLogin
+from models.user_models import User  # Исправлен импорт
+from schemas.user_schemas import UserCreate, UserResponse, UserLogin, UserUpdate  # Исправлен импорт + добавлен UserUpdate
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -19,18 +19,12 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered"
         )
     
-    # Валидация роли
-    if user_data.role not in ["customer", "executor"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Role must be 'customer' or 'executor'"
-        )
-    
+    # Валидация роли теперь автоматическая через Pydantic Enum
     # Создаем пользователя
     user = User(
         email=user_data.email,
         name=user_data.name,
-        role=user_data.role
+        role=user_data.role.value  # Берем значение из Enum
     )
     user.set_password(user_data.password)
     
@@ -88,7 +82,7 @@ async def get_users(
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: int, 
-    user_update: UserCreate, 
+    user_update: UserUpdate,  # Исправлено на UserUpdate
     db: Session = Depends(get_db)
 ):
     """
@@ -102,7 +96,7 @@ async def update_user(
         )
     
     # Проверяем email на уникальность (если изменен)
-    if user_update.email != user.email:
+    if user_update.email and user_update.email != user.email:
         existing_user = db.query(User).filter(User.email == user_update.email).first()
         if existing_user:
             raise HTTPException(
@@ -110,10 +104,14 @@ async def update_user(
                 detail="Email already registered"
             )
     
-    user.email = user_update.email
-    user.name = user_update.name
-    user.role = user_update.role
-    user.set_password(user_update.password)
+    # Используем update_from_dict для частичного обновления
+    update_data = user_update.dict(exclude_unset=True)
+    
+    # Конвертируем Enum в строку если нужно
+    if 'role' in update_data and hasattr(update_data['role'], 'value'):
+        update_data['role'] = update_data['role'].value
+    
+    user.update_from_dict(update_data)
     
     db.commit()
     db.refresh(user)
