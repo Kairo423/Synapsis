@@ -1,41 +1,54 @@
-# Web Framework
+# Core framework
 fastapi==0.121.3
 uvicorn==0.38.0
 starlette==0.50.0
 
+# Authentication & Security
+authx==1.4.3
+passlib==1.7.4
+python-jose==3.5.0
+PyJWT==2.10.1
+cryptography==46.0.3
+ecdsa==0.19.1
+rsa==4.9.1
+pycparser==2.23
+cffi==2.0.0
+pyasn1==0.6.1
+itsdangerous==2.2.0
+
 # Database
 SQLAlchemy==2.0.44
+psycopg2-binary==2.9.11
 alembic==1.17.2
-psycopg2-binary==2.9.9
 greenlet==3.2.4
 
-# Authentication & Security
-passlib==1.7.4
-python-jose[cryptography]==3.3.0
-cryptography==42.0.5
-email-validator==2.1.1
-
-# Pydantic & Types
+# Pydantic & Validation
 pydantic==2.12.4
 pydantic_core==2.41.5
+pydantic-settings==2.12.0
 annotated-types==0.7.0
-typing_extensions==4.15.0
-typing-inspection==0.4.2
+email-validator==2.2.0
 
-# Environment & Config
+# Environment & Configuration
 python-dotenv==1.2.1
+dotenv==0.9.9
 
-# HTTP & Async
+# Utilities
 anyio==4.11.0
-h11==0.16.0
-sniffio==1.3.1
-idna==3.11
-
-# Templates & CLI
-Mako==1.3.10
-MarkupSafe==3.0.3
 click==8.3.1
 colorama==0.4.6
-
-# Documentation
+h11==0.16.0
+idna==3.11
+Mako==1.3.10
+MarkupSafe==3.0.3
+python-dateutil==2.9.0.post0
+pytz==2025.2
+six==1.17.0
+sniffio==1.3.1
+typing_extensions==4.15.0
+typing-inspection==0.4.2
 annotated-doc==0.0.4
+
+# Optional: для production можно зафиксировать pip и setuptools
+# pip==25.3
+# setuptools==65.5.0

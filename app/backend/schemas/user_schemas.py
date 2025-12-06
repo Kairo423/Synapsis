@@ -6,19 +6,19 @@ from enum import Enum
 class UserRole(str, Enum):
     CUSTOMER = "customer"
     EXECUTOR = "executor"
+    ADMIN = "admin"
 
 class UserBase(BaseModel):
     email: EmailStr
     name: str
-    role: UserRole  # Используем Enum вместо str
+    role: UserRole
 
 class UserCreate(UserBase):
     password: str
 
 class UserResponse(UserBase):
     id: int
-    avatar_url: Optional[str] = None
-    rating: float = 0.0  # Добавляем значения по умолчанию
+    rating: float = 0.0
     balance: float = 0.0
     is_active: bool = True
     created_at: datetime
