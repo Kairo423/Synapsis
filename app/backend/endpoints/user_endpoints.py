@@ -8,6 +8,7 @@ from typing import List
 from auth import get_current_user, role_required, security, config
 
 router = APIRouter(prefix="/users", tags=["users"])
+auth_router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -70,40 +71,52 @@ async def login(login_data: UserLogin, response: Response, db: Session = Depends
     }
 
 @router.get("/{user_id}", response_model=UserResponse)
-async def get_user(user_id: int, db: Session = Depends(get_db)):
+async def get_user(user_id: int, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
     """
     Получение информации о пользователе по ID
+    Требует аутентификацию - пользователь может получить только свои данные или администратор может получить любого пользователя
     """
-    
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Ошибка доступа. Функция недоступна для роли '{current_user.role}'"
-        )
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Пользователь не найден"
+            detail="User not found"
         )
+    
+    # Проверяем, является ли текущий пользователь администратором или запрашивает свои данные
+    if current_user.role != "admin" and current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: can only access own data unless admin"
+        )
+    
     return user
 
 @router.get("/", response_model=list[UserResponse])
 async def get_users(
-    skip: int = 0, 
-    limit: int = 100, 
+    skip: int = 0,
+    limit: int = 100,
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Получение списка пользователей с пагинацией
     """
+    # Проверяем, является ли текущий пользователь администратором
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: only admin can view all users"
+        )
+    
     users = db.query(User).offset(skip).limit(limit).all()
     return users
 
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
-    user_id: int, 
+    user_id: int,
     user_update: UserUpdate,  # Исправлено на UserUpdate
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -114,6 +127,13 @@ async def update_user(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
+        )
+    
+    # Проверяем, является ли текущий пользователь администратором или обновляет свои данные
+    if current_user.role != "admin" and current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: can only update own data unless admin"
         )
     
     # Проверяем email на уникальность (если изменен)
@@ -140,7 +160,7 @@ async def update_user(
     return user
 
 @router.delete("/{user_id}")
-async def delete_user(user_id: int, db: Session = Depends(get_db)):
+async def delete_user(user_id: int, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
     """
     Удаление пользователя (мягкое удаление)
     """
@@ -151,7 +171,44 @@ async def delete_user(user_id: int, db: Session = Depends(get_db)):
             detail="User not found"
         )
     
+    # Проверяем, является ли текущий пользователь администратором или удаляет себя
+    if current_user.role != "admin" and current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: can only delete own account unless admin"
+        )
+    
     user.is_active = False
     db.commit()
     
     return {"message": "User deactivated successfully"}
+
+
+# Добавляем глобальные защищенные маршруты
+@auth_router.get("/me", tags=["authentication"])
+async def get_current_user_info(current_user = Depends(get_current_user)):
+    return current_user
+
+@auth_router.get("/admin", tags=["authentication"])
+async def admin_only(current_user = Depends(get_current_user)):
+    # Проверяем роль пользователя напрямую
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Access forbidden: role mismatch, your role is '{current_user.role}'"
+        )
+    return {"message": "Welcome, admin!", "user_id": current_user.id, "email": current_user.email, "role": current_user.role}
+
+@auth_router.get("/customer", tags=["authentication"])
+async def customer_access(current_user = Depends(get_current_user)):
+    # Проверяем роль пользователя - должен быть customer или admin
+    if current_user.role not in ["customer", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Access forbidden: role mismatch, your role is '{current_user.role}'"
+        )
+    return {"message": "Welcome, customer!", "user_id": current_user.id, "email": current_user.email, "role": current_user.role}
+
+
+# Экспортируем оба роутера
+__all__ = ["router", "auth_router"]
