@@ -1,62 +1,14 @@
-import os
-from authx import AuthX, AuthXConfig
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Security
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+# Убраны неиспользуемые импорты HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from database import get_db
 from models.user_models import User  # Исправлен импорт
 from schemas.user_schemas import UserCreate, UserResponse, UserLogin, UserUpdate  # Исправлен импорт + добавлен UserUpdate
 from typing import List
+from auth import get_current_user, role_required, security, config
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-# Добавляем OAuth2PasswordBearer для авторизации через токены
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
-
-# Добавляем объект security для работы с токенами
-config = AuthXConfig()
-config.JWT_SECRET_KEY = os.getenv("SECRET_KEY")
-config.JWT_ACCESS_COOKIE_NAME = "my_access_token"
-config.JWT_TOKEN_LOCATION = ["cookies"]
-security = AuthX(config=config)
-
-def get_current_user(token: str = Security(oauth2_scheme), db: Session = Depends(get_db)):
-    """
-    Получение текущего пользователя из токена
-    """
-    try:
-        payload = security.decode_access_token(token)
-        user_id: int = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
-            )
-        user = db.query(User).filter(User.id == user_id).first()
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
-            )
-        return user
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
-
-def role_required(allowed_roles: List[str]):
-    """
-    Декоратор для проверки роли пользователя
-    """
-    def decorator(user: User = Depends(get_current_user)):
-        if user.role not in allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access forbidden: insufficient role"
-            )
-        return user
-    return decorator
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
@@ -122,11 +74,17 @@ async def get_user(user_id: int, db: Session = Depends(get_db)):
     """
     Получение информации о пользователе по ID
     """
+    
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Ошибка доступа. Функция недоступна для роли '{current_user.role}'"
+        )
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="Пользователь не найден"
         )
     return user
 
@@ -197,12 +155,3 @@ async def delete_user(user_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return {"message": "User deactivated successfully"}
-
-# Пример использования ограничения доступа
-@router.get("/admin", dependencies=[Depends(role_required(["admin"]))])
-async def admin_only():
-    return {"message": "Welcome, admin!"}
-
-@router.get("/customer", dependencies=[Depends(role_required(["customer", "admin"]))])
-async def customer_access():
-    return {"message": "Welcome, customer!"}
