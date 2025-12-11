@@ -7,7 +7,6 @@ from database import engine, Base, get_db
 import models.user_models
 import uvicorn
 
-# Настройка FastAPI с кастомной схемой безопасности для куки
 app = FastAPI(
     title="Synapsis",
     version="1.0.0",
@@ -34,7 +33,7 @@ def startup_event():
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to My FastAPI App!"}
+    return {"message": "Добро пожаловать в Synapsis API. Документация: /docs"}
 
 @app.get("/health")
 def health_check():

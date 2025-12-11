@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
-# Убраны неиспользуемые импорты HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from database import get_db
-from models.user_models import User  # Исправлен импорт
-from schemas.user_schemas import UserCreate, UserResponse, UserLogin, UserUpdate  # Исправлен импорт + добавлен UserUpdate
+from models.user_models import User
+from schemas.user_schemas import UserCreate, UserResponse, UserLogin, UserUpdate
 from typing import List
 from auth import get_current_user, role_required, security, config
 
@@ -16,20 +15,17 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """
     Регистрация нового пользователя
     """
-    # Проверяем, нет ли уже пользователя с таким email
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+            detail="Email уже зарегистрирован"
         )
     
-    # Валидация роли теперь автоматическая через Pydantic Enum
-    # Создаем пользователя
     user = User(
         email=user_data.email,
         name=user_data.name,
-        role=user_data.role.value  # Берем значение из Enum
+        role=user_data.role.value
     )
     user.set_password(user_data.password)
     
@@ -49,13 +45,11 @@ async def login(login_data: UserLogin, response: Response, db: Session = Depends
     if not user or not user.verify_password(login_data.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
+            detail="Неправильный пароль"
         )
 
-    # Генерация токена
     token = security.create_access_token(uid=str(user.id))
 
-    # Установка токена в куки
     response.set_cookie(
         key=config.JWT_ACCESS_COOKIE_NAME,
         value=token,
@@ -63,7 +57,7 @@ async def login(login_data: UserLogin, response: Response, db: Session = Depends
     )
 
     return {
-        "message": "Login successful",
+        "message": "Успешная авторизация",
         "access_token": token,
         "user_id": user.id,
         "role": user.role,
@@ -80,14 +74,13 @@ async def get_user(user_id: int, current_user = Depends(get_current_user), db: S
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="Пользователь не найден"
         )
     
-    # Проверяем, является ли текущий пользователь администратором или запрашивает свои данные
     if current_user.role != "admin" and current_user.id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access forbidden: can only access own data unless admin"
+            detail="У вас нет доступа к информации других пользователей"
         )
     
     return user
@@ -102,11 +95,10 @@ async def get_users(
     """
     Получение списка пользователей с пагинацией
     """
-    # Проверяем, является ли текущий пользователь администратором
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access forbidden: only admin can view all users"
+            detail="У вас нет доступа к информации других пользователей"
         )
     
     users = db.query(User).offset(skip).limit(limit).all()
@@ -126,29 +118,25 @@ async def update_user(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="Пользователь не найден"
         )
     
-    # Проверяем, является ли текущий пользователь администратором или обновляет свои данные
     if current_user.role != "admin" and current_user.id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access forbidden: can only update own data unless admin"
+            detail="У вас нет доступа к обновлению информации других пользователей"
         )
     
-    # Проверяем email на уникальность (если изменен)
     if user_update.email and user_update.email != user.email:
         existing_user = db.query(User).filter(User.email == user_update.email).first()
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
+                detail="Email уже зарегистрирован"
             )
     
-    # Используем update_from_dict для частичного обновления
     update_data = user_update.dict(exclude_unset=True)
     
-    # Конвертируем Enum в строку если нужно
     if 'role' in update_data and hasattr(update_data['role'], 'value'):
         update_data['role'] = update_data['role'].value
     
@@ -168,23 +156,22 @@ async def delete_user(user_id: int, current_user = Depends(get_current_user), db
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            detail="Пользователь не найден"
         )
     
     # Проверяем, является ли текущий пользователь администратором или удаляет себя
     if current_user.role != "admin" and current_user.id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access forbidden: can only delete own account unless admin"
+            detail="Вы не можете удалять других пользователей"
         )
     
     user.is_active = False
     db.commit()
     
-    return {"message": "User deactivated successfully"}
+    return {"message": "Пользователь успешно деактивирован"}
 
 
-# Добавляем глобальные защищенные маршруты
 @auth_router.get("/me", tags=["authentication"])
 async def get_current_user_info(current_user = Depends(get_current_user)):
     return current_user
@@ -195,20 +182,18 @@ async def admin_only(current_user = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Access forbidden: role mismatch, your role is '{current_user.role}'"
+            detail=f"У вас нет доступа, так как вы не admin, а '{current_user.role}'"
         )
-    return {"message": "Welcome, admin!", "user_id": current_user.id, "email": current_user.email, "role": current_user.role}
+    return {"message": "Добро пожаловать, admin!", "user_id": current_user.id, "email": current_user.email, "role": current_user.role}
 
 @auth_router.get("/customer", tags=["authentication"])
 async def customer_access(current_user = Depends(get_current_user)):
-    # Проверяем роль пользователя - должен быть customer или admin
     if current_user.role not in ["customer", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Access forbidden: role mismatch, your role is '{current_user.role}'"
+            detail=f"У вас нет доступа, так как вы не customer либо admin. Ваша роль: '{current_user.role}'"
         )
-    return {"message": "Welcome, customer!", "user_id": current_user.id, "email": current_user.email, "role": current_user.role}
+    return {"message": "Добро пожаловать, customer!", "user_id": current_user.id, "email": current_user.email, "role": current_user.role}
 
 
-# Экспортируем оба роутера
 __all__ = ["router", "auth_router"]
