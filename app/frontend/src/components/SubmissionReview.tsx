@@ -1,27 +1,23 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Textarea } from './ui/textarea';
-import { Label } from './ui/label';
-import { ArrowLeft, CheckCircle2, XCircle, Star } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, XCircle, FileText, ExternalLink } from 'lucide-react';
 
 interface SubmissionReviewProps {
-  submission: {
-    id: number;
-    annotator: string;
-    task: string;
-    submittedAt: string;
-    rating: number;
-  };
+  submission: any;
   onBack: () => void;
   onAccept: () => void;
   onReject: () => void;
 }
 
 export function SubmissionReview({ submission, onBack, onAccept, onReject }: SubmissionReviewProps) {
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(price);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with Back button */}
       <div className="flex items-center gap-4">
         <Button variant="outline" size="sm" onClick={onBack}>
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -29,132 +25,82 @@ export function SubmissionReview({ submission, onBack, onAccept, onReject }: Sub
         </Button>
       </div>
 
-      {/* Submission Info */}
       <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle>{submission.task}</CardTitle>
-              <CardDescription className="mt-2">
-                Исполнитель: {submission.annotator} • Рейтинг: ⭐ {submission.rating}
-              </CardDescription>
-            </div>
-            <Badge variant="outline" className="bg-yellow-50">
-              На проверке
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-4 py-3 border-y border-gray-200">
-            <div>
-              <div className="text-sm text-gray-600">Дата отправки</div>
-              <div>{submission.submittedAt}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600">ID работы</div>
-              <div>#{submission.id.toString().padStart(6, '0')}</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Result Preview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Результат разметки</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Mock annotation result */}
-          <div className="bg-gray-100 rounded-lg p-8 mb-4">
-            <div className="text-center text-gray-500 mb-4">
-              Пример результата разметки
-            </div>
-            <div className="bg-white rounded-lg p-4 border-2 border-gray-300">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded border border-blue-200">
-                  <span>Область 1: Патология обнаружена</span>
-                  <Badge variant="outline" className="bg-blue-100">Размечено</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded border border-blue-200">
-                  <span>Область 2: Нормальная ткань</span>
-                  <Badge variant="outline" className="bg-blue-100">Размечено</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded border border-blue-200">
-                  <span>Область 3: Патология обнаружена</span>
-                  <Badge variant="outline" className="bg-blue-100">Размечено</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded border border-green-200">
-                  <span>Всего размечено областей: 12</span>
-                  <Badge variant="outline" className="bg-green-100">✓ Выполнено</Badge>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Annotator Notes */}
-          <div className="space-y-2">
-            <Label>Комментарии исполнителя</Label>
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <p className="text-sm text-gray-700">
-                Выполнена разметка всех видимых патологий. В областях 1 и 3 обнаружены признаки воспаления.
-                Все границы выделены с максимальной точностью согласно инструкциям.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Quality Assessment */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Оценка качества</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-6 space-y-6">
+          {/* Header Section */}
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="rating">Оценка работы</Label>
-              <div className="flex gap-2 mt-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    className="p-2 hover:bg-gray-100 rounded transition-colors"
-                  >
-                    <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
-                  </button>
-                ))}
-              </div>
-            </div>
+            <h2 className="text-2xl font-bold">{submission.task?.title || 'Без названия'}</h2>
 
-            <div>
-              <Label htmlFor="feedback">Комментарий (опционально)</Label>
-              <Textarea
-                id="feedback"
-                placeholder="Оставьте отзыв о качестве выполненной работы..."
-                rows={4}
-                className="mt-2"
-              />
+            <div className="flex flex-wrap gap-2">
+              <Badge className="bg-green-600 hover:bg-green-700 text-white border-0 px-3 py-1">
+                {formatPrice(submission.task?.price || 0)}
+              </Badge>
+              {submission.task?.category && (
+                <Badge variant="outline" className="px-3 py-1 bg-gray-50 text-gray-700 border-gray-200">
+                  {submission.task.category}
+                </Badge>
+              )}
+              {submission.task?.difficulty && (
+                <Badge
+                  className={`px-3 py-1 border-0 ${submission.task.difficulty === 'low' || submission.task.difficulty === 'beginner'
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-green-600 hover:bg-green-700 text-white' // Using green for now as per ref
+                    }`}
+                >
+                  {submission.task.difficulty === 'low' ? 'Начальный' :
+                    submission.task.difficulty === 'min' ? 'Минимальный' :
+                      submission.task.difficulty === 'pro' ? 'Продвинутый' :
+                        submission.task.difficulty === 'expert' ? 'Эксперт' :
+                          submission.task.difficulty}
+                </Badge>
+              )}
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Actions */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex gap-3 justify-end">
-            <Button variant="outline" onClick={onBack}>
-              Отменить
-            </Button>
-            <Button 
-              variant="outline" 
-              className="text-red-600 border-red-600 hover:bg-red-50"
+          <div className="border-t border-gray-100 my-6"></div>
+
+          {/* Description / Comment */}
+          <div className="text-base leading-relaxed text-gray-800 whitespace-pre-wrap">
+            {submission.comment || 'Исполнитель не оставил комментарий к выполнению.'}
+          </div>
+
+          {/* Attachment Link */}
+          {submission.attachment_url && (
+            <a
+              href={submission.attachment_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block mt-8 group"
+            >
+              <div className="border rounded-xl p-4 flex items-center gap-4 hover:border-blue-500 hover:bg-blue-50/10 transition-colors">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center shrink-0 text-blue-600">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate group-hover:text-blue-600 transition-colors">
+                    {submission.attachment_url.replace(/^https?:\/\//, '')}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    Нажмите для перехода
+                  </div>
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
+              </div>
+            </a>
+          )}
+
+          {/* Actions Footer */}
+          <div className="flex gap-3 justify-end pt-6 mt-6 border-t border-gray-100">
+            <Button
+              variant="outline"
+              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
               onClick={onReject}
             >
               <XCircle className="w-4 h-4 mr-2" />
-              Вернуть на доработку
+              Отклонить
             </Button>
-            <Button 
-              className="bg-green-600 hover:bg-green-700"
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white border-0"
               onClick={onAccept}
             >
               <CheckCircle2 className="w-4 h-4 mr-2" />

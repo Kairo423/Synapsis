@@ -11,6 +11,9 @@ import { TaskFeed } from './components/TaskFeed';
 import { TaskExecution } from './components/TaskExecution';
 import { Button } from './components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
+import { Input } from './components/ui/input';
+import { Label } from './components/ui/label';
 import { LogOut, Plus, DollarSign } from 'lucide-react';
 
 type AuthView = 'login' | 'register' | 'forgot-password';
@@ -24,6 +27,7 @@ export interface UserData {
   role: 'executor' | 'provider' | 'admin' | null;
   onboardingStatus: OnboardingStatus;
   access_token?: string;
+  balance?: number;
 }
 
 export default function App() {
@@ -38,7 +42,37 @@ export default function App() {
     email: '',
     role: null,
     onboardingStatus: 'not-started',
+    balance: 0,
   });
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [isToppingUp, setIsToppingUp] = useState(false);
+  const [showTopUpDialog, setShowTopUpDialog] = useState(false);
+  const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+
+  // Update URL based on auth state
+  useEffect(() => {
+    if (isAuthenticated && (currentView === 'executor' || currentView === 'provider')) {
+      window.history.pushState(null, '', '/dashboard');
+    } else if (!isAuthenticated && !isCheckingAuth) {
+      window.history.pushState(null, '', '/');
+    }
+  }, [isAuthenticated, currentView, isCheckingAuth]);
+
+  const refreshBalance = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/users/balance', {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUserData(prev => ({ ...prev, balance: data.balance }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch balance:', error);
+    }
+  };
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -55,10 +89,12 @@ export default function App() {
             email: data.email,
             role: data.role,
             onboardingStatus: 'completed',
+            balance: data.balance,
           };
 
           setIsAuthenticated(true);
           setUserData(user);
+          refreshBalance(); // Fetch specifically from balance endpoint as requested
 
           if (data.role === 'executor') {
             setCurrentView('executor');
@@ -103,6 +139,68 @@ export default function App() {
     setIsAuthenticated(true);
     if (userData.role === 'executor') setCurrentView('executor');
     if (userData.role === 'provider') setCurrentView('provider');
+  };
+
+  const handleTopUp = async () => {
+    const amount = parseFloat(topUpAmount);
+    if (isNaN(amount) || amount <= 0) return;
+
+    setIsToppingUp(true);
+    try {
+      const response = await fetch('http://localhost:8000/users/topup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ amount }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUserData(prev => ({ ...prev, balance: data.new_balance }));
+        setShowTopUpDialog(false);
+        setTopUpAmount('');
+      } else {
+        const err = await response.json();
+        alert(err.detail || 'Ошибка при пополнении');
+      }
+    } catch (error) {
+      console.error('Top up failed:', error);
+    } finally {
+      setIsToppingUp(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0) return;
+    if (amount > (userData.balance || 0)) {
+      alert('Недостаточно средств на балансе');
+      return;
+    }
+
+    setIsWithdrawing(true);
+    try {
+      const response = await fetch('http://localhost:8000/users/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ amount }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUserData(prev => ({ ...prev, balance: data.new_balance }));
+        setShowWithdrawDialog(false);
+        setWithdrawAmount('');
+      } else {
+        const err = await response.json();
+        alert(err.detail || 'Ошибка при выводе средств');
+      }
+    } catch (error) {
+      console.error('Withdrawal failed:', error);
+    } finally {
+      setIsWithdrawing(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -191,12 +289,98 @@ export default function App() {
               {userData.role === 'provider' && (
                 <div className="flex items-center gap-4 mr-4">
                   <div className="flex items-center gap-2 text-gray-700 font-medium">
-                    <span>125,400₽</span>
+                    <span>{userData.balance?.toLocaleString() || '0'}₽</span>
                   </div>
-                  <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700 text-white">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Пополнить баланс
-                  </Button>
+                  <Dialog open={showTopUpDialog} onOpenChange={setShowTopUpDialog}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Пополнить баланс
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[380px]">
+                      <DialogHeader className="text-center">
+                        <DialogTitle className="text-xl">Пополнение баланса</DialogTitle>
+                        <DialogDescription className="text-gray-500">
+                          Введите сумму для зачисления на счет
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="flex flex-col gap-4 py-4 text-center">
+                        <Label htmlFor="amount" className="text-sm font-medium text-gray-700">
+                          Сумма пополнения
+                        </Label>
+                        <Input
+                          id="amount"
+                          type="number"
+                          value={topUpAmount}
+                          onChange={(e) => setTopUpAmount(e.target.value)}
+                          className="text-center text-lg h-12"
+                          placeholder="0.00 ₽"
+                        />
+                      </div>
+                      <DialogFooter className="sm:justify-center">
+                        <Button
+                          type="submit"
+                          className="bg-green-600 hover:bg-green-700 w-full h-11 text-lg"
+                          onClick={handleTopUp}
+                          disabled={isToppingUp || !topUpAmount}
+                        >
+                          {isToppingUp ? 'Зачисление...' : 'Зачислить'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
+              {userData.role === 'executor' && (
+                <div className="flex items-center gap-4 mr-4">
+                  <div className="flex items-center gap-2 text-gray-700 font-medium">
+                    <span>{userData.balance?.toLocaleString() || '0'}₽</span>
+                  </div>
+                  <Dialog open={showWithdrawDialog} onOpenChange={setShowWithdrawDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700 text-white">
+                        <DollarSign className="w-4 h-4 mr-2" />
+                        Вывести деньги
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[380px]">
+                      <DialogHeader className="text-center">
+                        <DialogTitle className="text-xl">Вывод средств</DialogTitle>
+                        <DialogDescription className="text-gray-500">
+                          Введите сумму для вывода на ваш счет
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="flex flex-col gap-4 py-4 text-center">
+                        <Label htmlFor="withdraw-amount" className="text-sm font-medium text-gray-700">
+                          Сумма вывода
+                        </Label>
+                        <Input
+                          id="withdraw-amount"
+                          type="number"
+                          value={withdrawAmount}
+                          onChange={(e) => setWithdrawAmount(e.target.value)}
+                          className="text-center text-lg h-12"
+                          placeholder="0.00 ₽"
+                        />
+                        <p className="text-xs text-gray-500">Доступно: {userData.balance?.toLocaleString()} ₽</p>
+                      </div>
+                      <DialogFooter className="sm:justify-center">
+                        <Button
+                          type="submit"
+                          className="bg-green-600 hover:bg-green-700 w-full h-11 text-lg"
+                          onClick={handleWithdraw}
+                          disabled={isWithdrawing || !withdrawAmount || parseFloat(withdrawAmount) > (userData.balance || 0)}
+                        >
+                          {isWithdrawing ? 'Обработка...' : 'Вывести'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               )}
               <Button variant="outline" size="sm" onClick={handleLogout}>
@@ -221,7 +405,7 @@ export default function App() {
               </TabsList>
 
               <TabsContent value="dashboard">
-                <AnnotatorDashboard userName={userData.name} userId={userData.id} />
+                <AnnotatorDashboard userName={userData.name} userId={userData.id} refreshBalance={refreshBalance} />
               </TabsContent>
 
               <TabsContent value="tasks">
@@ -236,7 +420,7 @@ export default function App() {
         )}
 
         {currentView === 'provider' && userData.role === 'provider' && (
-          <ClientDashboard userName={userData.name} />
+          <ClientDashboard userName={userData.name} userId={userData.id} refreshBalance={refreshBalance} />
         )}
       </main>
     </div>

@@ -69,7 +69,8 @@ async def login(login_data: UserLogin, response: Response, db: Session = Depends
         "access_token": token,
         "user_id": user.id,
         "role": user.role,
-        "name": user.name
+        "name": user.name,
+        "balance": user.balance
     }
 
 @router.post("/logout")
@@ -127,6 +128,55 @@ async def refresh_token(response: Response, request: Request):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Некорректный refresh token"
         )
+
+@router.get("/balance")
+async def get_user_balance(current_user: User = Depends(get_current_user)):
+    """
+    Получение баланса текущего пользователя
+    """
+    return {"balance": current_user.balance}
+
+@router.post("/topup")
+async def topup_balance(amount_data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Пополнение баланса текущего пользователя
+    """
+    amount = amount_data.get("amount")
+    if not amount or amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Сумма пополнения должна быть больше 0"
+        )
+    
+    current_user.balance += amount
+    db.commit()
+    db.refresh(current_user)
+    
+    return {"message": "Баланс успешно пополнен", "new_balance": current_user.balance}
+
+@router.post("/withdraw")
+async def withdraw_balance(amount_data: dict, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Вывод средств с баланса текущего пользователя
+    """
+    amount = amount_data.get("amount")
+    if not amount or amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Сумма вывода должна быть больше 0"
+        )
+    
+    if current_user.balance < amount:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Недостаточно средств на балансе"
+        )
+    
+    current_user.balance -= amount
+    db.commit()
+    db.refresh(current_user)
+    
+    return {"message": "Вывод средств выполнен успешно", "new_balance": current_user.balance}
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(user_id: int, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -225,8 +275,6 @@ async def update_user(
     db.refresh(user)
     
     return user
-
-
 
 @router.delete("/{user_id}")
 async def delete_user(user_id: int, current_user = Depends(get_current_user), db: Session = Depends(get_db)):

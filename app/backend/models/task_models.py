@@ -22,10 +22,10 @@ class Task(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
     # Relationships can be added here if needed, e.g.
-    # customer = relationship("User", foreign_keys=[customer_id])
-    # performer = relationship("User", foreign_keys=[performer_id])
-    # attachments = relationship("TaskAttachment", back_populates="task")
-    # responses = relationship("TaskResponse", back_populates="task")
+    customer = relationship("User", foreign_keys=[customer_id])
+    performer = relationship("User", foreign_keys=[performer_id])
+    attachments = relationship("TaskAttachment", back_populates="task")
+    responses = relationship("TaskResponse", back_populates="task")
 
 class TaskAttachment(Base):
     __tablename__ = "task_attachments"
@@ -36,7 +36,7 @@ class TaskAttachment(Base):
     filename = Column(String, nullable=False)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # task = relationship("Task", back_populates="attachments")
+    task = relationship("Task", back_populates="attachments")
 
 class TaskResponse(Base):
     __tablename__ = "task_responses"
@@ -49,5 +49,5 @@ class TaskResponse(Base):
     status = Column(String, default="submitted", nullable=False) # submitted, accepted, rejected
     submitted_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # task = relationship("Task", back_populates="responses")
-    # performer = relationship("User")
+    task = relationship("Task", back_populates="responses")
+    performer = relationship("User")

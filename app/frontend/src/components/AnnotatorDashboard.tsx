@@ -8,10 +8,12 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Textarea } from './ui/textarea';
 import { Clock, DollarSign, Star, TrendingUp, Pencil, Check } from 'lucide-react';
 
-export function AnnotatorDashboard({ userName, userId }: { userName: string; userId?: number }) {
+export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userName: string; userId?: number; refreshBalance?: () => void }) {
   const [description, setDescription] = useState('Загрузка...');
   const [isEditing, setIsEditing] = useState(false);
   const [tempDescription, setTempDescription] = useState('');
+  const [balance, setBalance] = useState(0);
+  const [recentTasks, setRecentTasks] = useState<any[]>([]);
 
   useEffect(() => {
     if (userId) {
@@ -19,11 +21,45 @@ export function AnnotatorDashboard({ userName, userId }: { userName: string; use
         .then((res) => res.json())
         .then((data) => {
           setDescription(data.description || 'Нет описания');
+          setBalance(data.balance || 0);
+          if (refreshBalance) refreshBalance();
         })
         .catch((err) => {
           console.error(err);
           setDescription('Ошибка загрузки');
         });
+
+      // Fetch tasks and responses
+      const fetchTasksData = async () => {
+        try {
+          const [tasksRes, responsesRes] = await Promise.all([
+            fetch('http://localhost:8000/tasks/'),
+            fetch('http://localhost:8000/task_responses/', { credentials: 'include' })
+          ]);
+
+          if (tasksRes.ok && responsesRes.ok) {
+            const tasks = await tasksRes.json();
+            const responses = await responsesRes.json();
+
+            const combined = responses.map((r: any) => {
+              const t = tasks.find((t: any) => t.id === r.task_id);
+              return {
+                id: r.id,
+                title: t?.title || 'Неизвестная задача',
+                status: r.status,
+                reward: t?.price || 0,
+                date: r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : 'Недавно',
+                rating: null, // Placeholder as backend doesn't return rating yet
+              };
+            });
+            // Sort by ID descending (newest first) as a proxy for time if checks are needed
+            setRecentTasks(combined.sort((a: any, b: any) => b.id - a.id));
+          }
+        } catch (e) {
+          console.error("Error loading recent tasks", e);
+        }
+      };
+      fetchTasksData();
     }
   }, [userId]);
 
@@ -47,10 +83,19 @@ export function AnnotatorDashboard({ userName, userId }: { userName: string; use
     }
   };
 
+  const completedTasksCount = recentTasks.filter(t => t.status === 'accepted').length;
+  const totalEarned = recentTasks
+    .filter(t => t.status === 'accepted')
+    .reduce((acc, t) => acc + (t.reward || 0), 0);
+
+  const successRate = recentTasks.length > 0
+    ? Math.round((completedTasksCount / recentTasks.length) * 100)
+    : 100;
+
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col">
       {/* Profile Header */}
-      <Card>
+      <Card className="mb-8">
         <CardHeader className="p-6">
           <div className="flex items-center gap-6">
             <Avatar className="w-20 h-20">
@@ -100,7 +145,7 @@ export function AnnotatorDashboard({ userName, userId }: { userName: string; use
               </div>
 
               <div className="flex items-center gap-4 leading-none">
-                <span>287 выполненных заданий</span>
+                <span>{completedTasksCount} выполненных заданий</span>
               </div>
             </div>
           </div>
@@ -108,7 +153,7 @@ export function AnnotatorDashboard({ userName, userId }: { userName: string; use
       </Card>
 
       {/* Stats Grid */}
-      <div className="grid md:grid-cols-4 gap-4">
+      <div className="grid md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-3">
             <CardDescription>Всего заработано</CardDescription>
@@ -116,7 +161,7 @@ export function AnnotatorDashboard({ userName, userId }: { userName: string; use
           <CardContent>
             <div className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-green-600" />
-              <span className="text-2xl">45,890₽</span>
+              <span className="text-2xl">{totalEarned.toLocaleString()}₽</span>
             </div>
           </CardContent>
         </Card>
@@ -128,121 +173,67 @@ export function AnnotatorDashboard({ userName, userId }: { userName: string; use
           <CardContent>
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-blue-600" />
-              <span className="text-2xl">3</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Процент успеха</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-green-600" />
-              <span className="text-2xl">97%</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Текущий баланс</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-blue-600" />
-              <span className="text-2xl">2,450₽</span>
+              <span className="text-2xl">{recentTasks.filter(t => t.status === 'in_progress').length}</span>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Activity */}
-      <Card>
+      <Card className="mt-8">
         <CardHeader>
           <CardTitle>Недавние задания</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {[
-              {
-                id: 1,
-                title: 'Разметка медицинских снимков МРТ',
-                status: 'completed',
-                reward: 850,
-                date: '2025-10-24',
-                rating: 5,
-              },
-              {
-                id: 2,
-                title: 'Классификация рентгеновских изображений',
-                status: 'in_progress',
-                reward: 1200,
-                date: '2025-10-23',
-                progress: 65,
-              },
-              {
-                id: 3,
-                title: 'Аннотация медицинских текстов',
-                status: 'in_progress',
-                reward: 650,
-                date: '2025-10-22',
-                progress: 30,
-              },
-              {
-                id: 4,
-                title: 'Сегментация органов на КТ снимках',
-                status: 'completed',
-                reward: 1500,
-                date: '2025-10-21',
-                rating: 5,
-              },
-              {
-                id: 5,
-                title: 'Разметка патологий на снимках',
-                status: 'review',
-                reward: 900,
-                date: '2025-10-20',
-              },
-            ].map((task) => (
-              <div key={task.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h4>{task.title}</h4>
-                    {task.status === 'completed' && (
-                      <Badge variant="default" className="bg-green-600">Завершено</Badge>
-                    )}
-                    {task.status === 'in_progress' && (
-                      <Badge variant="default" className="bg-blue-600">В работе</Badge>
-                    )}
-                    {task.status === 'review' && (
-                      <Badge variant="default" className="bg-yellow-600">На проверке</Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
-                    <span>{task.date}</span>
-                    <span>•</span>
-                    <span>{task.reward}₽</span>
-                    {task.rating && (
-                      <>
-                        <span>•</span>
-                        <div className="flex items-center gap-1">
-                          {[...Array(task.rating)].map((_, i) => (
-                            <Star key={i} className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  {task.progress !== undefined && (
-                    <div className="mt-2">
-                      <Progress value={task.progress} className="h-2" />
+            {recentTasks.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">Нет недавних заданий</p>
+            ) : (
+              recentTasks.map((task) => (
+                <div key={task.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h4 className="font-semibold text-slate-900">{task.title}</h4>
+                      {task.status === 'completed' && (
+                        <Badge variant="default" className="bg-green-600 hover:bg-green-700">Завершено</Badge>
+                      )}
+                      {task.status === 'accepted' && (
+                        <Badge variant="default" className="bg-green-600 hover:bg-green-700">Принято</Badge>
+                      )}
+                      {task.status === 'in_progress' && (
+                        <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">В работе</Badge>
+                      )}
+                      {(task.status === 'on_check' || task.status === 'submitted') && (
+                        <Badge
+                          variant="secondary"
+                          className="text-white border-0"
+                          style={{ backgroundColor: '#f97316', color: 'white' }}
+                        >
+                          На проверке
+                        </Badge>
+                      )}
+                      {task.status === 'rejected' && (
+                        <Badge variant="default" className="bg-red-600 hover:bg-red-700">Отклонено</Badge>
+                      )}
                     </div>
-                  )}
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <span>{task.date}</span>
+                      <span>•</span>
+                      <span className="font-bold text-slate-900">{task.reward}₽</span>
+                      {task.rating && (
+                        <>
+                          <span>•</span>
+                          <div className="flex items-center gap-1">
+                            {[...Array(task.rating)].map((_, i) => (
+                              <Star key={i} className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

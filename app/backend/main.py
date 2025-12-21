@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from endpoints.user_endpoints import router as users_router, auth_router
 from endpoints.task_endpoints import router as tasks_router
+from endpoints.task_response_endpoints import router as task_responses_router
 from auth import get_current_user
 from database import engine, Base, get_db
 import models.user_models
@@ -28,6 +29,7 @@ app.add_middleware(
 app.include_router(users_router)
 app.include_router(auth_router)
 app.include_router(tasks_router)
+app.include_router(task_responses_router)
 
 
 @app.on_event("startup")

@@ -23,12 +23,15 @@ import {
   Eye,
   Check,
   X,
+  Trash2,
+  Pencil,
 } from 'lucide-react';
 
-export function ClientDashboard({ userName }: { userName?: string }) {
+export function ClientDashboard({ userName, userId, refreshBalance }: { userName?: string; userId?: number; refreshBalance?: () => void }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
-  const [submissionStatuses, setSubmissionStatuses] = useState<Record<number, 'pending' | 'accepted' | 'rejected'>>({});
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [submissionStatuses, setSubmissionStatuses] = useState<Record<number, 'pending' | 'accepted' | 'rejected' | 'on_check' | 'submitted'>>({});
 
   // Task creation state
   const [title, setTitle] = useState('');
@@ -41,6 +44,8 @@ export function ClientDashboard({ userName }: { userName?: string }) {
   const [repeats, setRepeats] = useState('1');
   const [fileLink, setFileLink] = useState('');
 
+  const [editingTask, setEditingTask] = useState<any>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -50,10 +55,30 @@ export function ClientDashboard({ userName }: { userName?: string }) {
   const [isLoadingMyTasks, setIsLoadingMyTasks] = useState(false);
 
   useEffect(() => {
-    if (activeTab === 'tasks') {
+    if (activeTab === 'overview' && userId) {
       fetchMyTasks();
+      fetchReviews();
+    } else if (activeTab === 'tasks') {
+      fetchMyTasks();
+    } else if (activeTab === 'review' && userId) {
+      fetchReviews();
     }
-  }, [activeTab]);
+  }, [activeTab, userId]);
+
+  const fetchReviews = async () => {
+    if (!userId) return;
+    try {
+      const response = await fetch(`http://localhost:8000/task_responses/provider/${userId}`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setReviews(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch reviews:', error);
+    }
+  };
 
   const fetchMyTasks = async () => {
     setIsLoadingMyTasks(true);
@@ -70,6 +95,55 @@ export function ClientDashboard({ userName }: { userName?: string }) {
     } finally {
       setIsLoadingMyTasks(false);
     }
+  };
+
+  const handleDeleteTask = async (taskId: number) => {
+    try {
+      const response = await fetch(`http://localhost:8000/tasks/${taskId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Не удалось удалить задание');
+      }
+
+      setMyTasks(myTasks.filter(task => task.id !== taskId));
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      alert('Ошибка при удалении задания');
+    }
+  };
+
+  const handleEditClick = (task: any) => {
+    setEditingTask(task);
+    setTitle(task.title);
+    setDescription(task.description || '');
+    // Adjust category/custom category logic
+    const knownCategories = ['Медицина', 'Право', 'Лингвистика', 'Финансы'];
+    if (knownCategories.includes(task.category)) {
+      setCategory(task.category);
+      setCustomCategory('');
+    } else {
+      setCategory('other');
+      setCustomCategory(task.category);
+    }
+
+    // Reverse map difficulty
+    const reverseDifficultyMap: Record<string, string> = {
+      'low': 'beginner',
+      'mid': 'intermediate',
+      'pro': 'advanced',
+      'expert': 'expert'
+    };
+    setDifficulty(reverseDifficultyMap[task.difficulty] || '');
+
+    setPrice(task.price.toString());
+    setDeadline(task.deadline ? task.deadline.slice(0, 16) : ''); // Format for datetime-local
+    setRepeats(task.repeats.toString());
+    setFileLink(task.file_link || '');
+
+    setActiveTab('create');
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -98,8 +172,14 @@ export function ClientDashboard({ userName }: { userName?: string }) {
     };
 
     try {
-      const response = await fetch('http://localhost:8000/tasks/', {
-        method: 'POST',
+      const url = editingTask
+        ? `http://localhost:8000/tasks/${editingTask.id}`
+        : 'http://localhost:8000/tasks/';
+
+      const method = editingTask ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -109,10 +189,11 @@ export function ClientDashboard({ userName }: { userName?: string }) {
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(errData.detail || 'Ошибка при создании задания');
+        throw new Error(errData.detail || `Ошибка при ${editingTask ? 'обновлении' : 'создании'} задания`);
       }
 
-      setSuccess('Задание успешно опубликовано!');
+      setSuccess(editingTask ? 'Задание успешно обновлено!' : 'Задание успешно опубликовано!');
+
       // Reset form
       setTitle('');
       setDescription('');
@@ -123,10 +204,50 @@ export function ClientDashboard({ userName }: { userName?: string }) {
       setDeadline('');
       setRepeats('1');
       setFileLink('');
+      setEditingTask(null);
+
+      // If was editing, maybe go back to tasks list? Or just stay here with success message.
+      // Let's redirect to tasks list after a short delay or immediately if desired.
+      // For now, let's keep it simple.
+
     } catch (err: any) {
       setError(err.message || 'Произошла ошибка');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const updateSubmissionStatus = async (submissionId: number, status: 'accepted' | 'rejected') => {
+    try {
+      const response = await fetch(`http://localhost:8000/task_responses/${submissionId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ status }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Не удалось обновить статус');
+      }
+
+      // Update local state to reflect change immediately
+      setReviews(reviews.map(r => r.id === submissionId ? { ...r, status } : r));
+      setSubmissionStatuses({ ...submissionStatuses, [submissionId]: status });
+
+      // If we are in detailed view, close it or update it
+      if (selectedSubmission && selectedSubmission.id === submissionId) {
+        setSelectedSubmission(null);
+      }
+
+      if (status === 'accepted' && refreshBalance) {
+        refreshBalance();
+      }
+    } catch (error: any) {
+      console.error('Error updating status:', error);
+      alert(error.message || 'Ошибка при обновлении статуса');
     }
   };
 
@@ -148,27 +269,29 @@ export function ClientDashboard({ userName }: { userName?: string }) {
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
           {/* Stats Grid */}
-          <div className="grid md:grid-cols-4 gap-4">
+          <div className="grid md:grid-cols-3 gap-4">
             <Card>
               <CardHeader className="pb-3">
-                <CardDescription>Активных проектов</CardDescription>
+                <CardDescription>Активных заданий</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-blue-600" />
-                  <span className="text-2xl">8</span>
+                  <span className="text-2xl">{myTasks.length}</span>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-3">
-                <CardDescription>Выполнено заданий</CardDescription>
+                <CardDescription>Выполнено работ</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  <span className="text-2xl">1,247</span>
+                  <span className="text-2xl">
+                    {reviews.filter(r => r.status === 'accepted').length}
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -180,95 +303,85 @@ export function ClientDashboard({ userName }: { userName?: string }) {
               <CardContent>
                 <div className="flex items-center gap-2">
                   <Clock className="w-5 h-5 text-yellow-600" />
-                  <span className="text-2xl">89</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Средняя оценка качества</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-purple-600" />
-                  <span className="text-2xl">98%</span>
+                  <span className="text-2xl">
+                    {reviews.filter(r => r.status === 'on_check' || r.status === 'submitted').length}
+                  </span>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Active Projects */}
+
+          {/* Active Tasks */}
           <Card>
             <CardHeader>
-              <CardTitle>Активные проекты</CardTitle>
+              <CardTitle>Активные задания</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  {
-                    id: 1,
-                    name: 'Разметка медицинских снимков МРТ',
-                    total: 1000,
-                    completed: 680,
-                    inProgress: 150,
-                    pending: 170,
-                    quality: 97,
-                  },
-                  {
-                    id: 2,
-                    name: 'Классификация рентгеновских изображений',
-                    total: 500,
-                    completed: 320,
-                    inProgress: 80,
-                    pending: 100,
-                    quality: 99,
-                  },
-                  {
-                    id: 3,
-                    name: 'Сегментация органов на КТ',
-                    total: 800,
-                    completed: 145,
-                    inProgress: 120,
-                    pending: 535,
-                    quality: 96,
-                  },
-                ].map((project) => (
-                  <Card key={project.id}>
-                    <CardContent className="pt-6">
-                      <div className="space-y-4">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4>{project.name}</h4>
-                            <p className="text-sm text-gray-600 mt-1">
-                              Завершено: {project.completed} из {project.total}
-                            </p>
-                          </div>
-                          <Badge variant="outline">Качество: {project.quality}%</Badge>
-                        </div>
+                {isLoadingMyTasks ? (
+                  <div className="text-center py-12 text-gray-500">Загрузка...</div>
+                ) : myTasks.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">Нет активных заданий</div>
+                ) : (
+                  myTasks.map((task) => {
+                    const taskReviews = reviews.filter(r => r.task_id === task.id);
+                    const completed = taskReviews.filter(r => r.status === 'accepted').length;
+                    const inProgress = taskReviews.filter(r => r.status === 'in_progress').length;
+                    const onCheck = taskReviews.filter(r => r.status === 'on_check' || r.status === 'submitted').length;
+                    // Note: Quality is hardcoded for now as it's not in the DB, but using 100% placeholder or similar
+                    const quality = 100;
 
-                        <div>
-                          <Progress value={(project.completed / project.total) * 100} />
-                          <div className="flex justify-between text-sm text-gray-600 mt-2">
-                            <span>Завершено: {project.completed}</span>
-                            <span>В работе: {project.inProgress}</span>
-                            <span>Ожидают: {project.pending}</span>
-                          </div>
-                        </div>
+                    return (
+                      <Card key={task.id}>
+                        <CardContent className="pt-6">
+                          <div className="space-y-4">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <h4 className="font-bold text-lg">{task.title}</h4>
+                                <p className="text-sm text-gray-600 mt-1">
+                                  Завершено: {completed} из {task.repeats}
+                                </p>
+                              </div>
+                              <Badge variant="outline">Качество: {quality}%</Badge>
+                            </div>
 
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm">
-                            <Eye className="w-4 h-4 mr-2" />
-                            Подробнее
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            Проверить работы
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                            <div>
+                              <Progress value={(completed / task.repeats) * 100} />
+                              <div className="flex justify-between text-sm text-gray-600 mt-2">
+                                <span>Завершено: {completed}</span>
+                                <span>В работе: {inProgress}</span>
+                                <span>Ожидают: {onCheck}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  handleEditClick(task);
+                                }}
+                              >
+                                <Eye className="w-4 h-4 mr-2" />
+                                Подробнее
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setActiveTab('review');
+                                }}
+                              >
+                                Проверить работы
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                )}
               </div>
             </CardContent>
           </Card>
@@ -283,7 +396,19 @@ export function ClientDashboard({ userName }: { userName?: string }) {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Все задания</CardTitle>
-                <Button onClick={() => setActiveTab('create')}>
+                <Button onClick={() => {
+                  setEditingTask(null);
+                  setTitle('');
+                  setDescription('');
+                  setCategory('');
+                  setCustomCategory('');
+                  setDifficulty('');
+                  setPrice('');
+                  setDeadline('');
+                  setRepeats('1');
+                  setFileLink('');
+                  setActiveTab('create');
+                }}>
                   <Plus className="w-4 h-4 mr-2" />
                   Создать новое задание
                 </Button>
@@ -301,16 +426,16 @@ export function ClientDashboard({ userName }: { userName?: string }) {
                   {myTasks.map((task) => (
                     <div
                       key={task.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      className="flex items-center gap-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                     >
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-medium text-lg">{task.title}</h4>
+                          <h4 className="font-medium text-lg truncate">{task.title}</h4>
                           <Badge variant={
                             task.status === 'new' ? 'secondary' :
                               task.status === 'in_progress' ? 'default' :
                                 task.status === 'completed' ? 'success' : 'outline'
-                          }>
+                          } className="shrink-0">
                             {task.status === 'new' && 'Новое'}
                             {task.status === 'in_progress' && 'В работе'}
                             {task.status === 'completed' && 'Завершено'}
@@ -318,12 +443,13 @@ export function ClientDashboard({ userName }: { userName?: string }) {
                             {!['new', 'in_progress', 'completed', 'review'].includes(task.status) && task.status}
                           </Badge>
                         </div>
-                        <p className="text-sm text-gray-500 mt-1 line-clamp-1">
-                          {task.description}
+                        <p className="text-sm text-gray-500 mt-1">
+                          {task.description && task.description.length > 40
+                            ? task.description.slice(0, 40) + '...'
+                            : task.description}
                         </p>
                         <div className="flex gap-4 mt-2 text-sm text-gray-500">
                           <span className="flex items-center gap-1">
-                            <DollarSign className="w-3 h-3" />
                             {task.price} ₽
                           </span>
                           {task.deadline && (
@@ -338,9 +464,13 @@ export function ClientDashboard({ userName }: { userName?: string }) {
                           </span>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
-                          Подробнее
+                      <div className="flex gap-2 shrink-0">
+                        <Button variant="outline" size="sm" onClick={() => handleEditClick(task)}>
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Изменить
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteTask(task.id)}>
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
@@ -355,9 +485,9 @@ export function ClientDashboard({ userName }: { userName?: string }) {
         <TabsContent value="create" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Создание нового задания</CardTitle>
+              <CardTitle>{editingTask ? 'Редактирование задания' : 'Создание нового задания'}</CardTitle>
               <CardDescription>
-                Заполните форму для публикации задания на платформе
+                {editingTask ? 'Внесите изменения в существующее задание' : 'Заполните форму для публикации задания на платформе'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -403,10 +533,10 @@ export function ClientDashboard({ userName }: { userName?: string }) {
                         <SelectValue placeholder="Выберите категорию" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="medicine">Медицина</SelectItem>
-                        <SelectItem value="law">Право</SelectItem>
-                        <SelectItem value="linguistics">Лингвистика</SelectItem>
-                        <SelectItem value="finance">Финансы</SelectItem>
+                        <SelectItem value="Медицина">Медицина</SelectItem>
+                        <SelectItem value="Право">Право</SelectItem>
+                        <SelectItem value="Лингвистика">Лингвистика</SelectItem>
+                        <SelectItem value="Финансы">Финансы</SelectItem>
                         <SelectItem value="other">Другое</SelectItem>
                       </SelectContent>
                     </Select>
@@ -495,7 +625,7 @@ export function ClientDashboard({ userName }: { userName?: string }) {
 
                 <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
                   <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? 'Публикация...' : 'Опубликовать задание'}
+                    {isSubmitting ? 'Сохранение...' : (editingTask ? 'Сохранить изменения' : 'Опубликовать задание')}
                   </Button>
                 </div>
               </form>
@@ -509,14 +639,8 @@ export function ClientDashboard({ userName }: { userName?: string }) {
             <SubmissionReview
               submission={selectedSubmission}
               onBack={() => setSelectedSubmission(null)}
-              onAccept={() => {
-                setSubmissionStatuses({ ...submissionStatuses, [selectedSubmission.id]: 'accepted' });
-                setSelectedSubmission(null);
-              }}
-              onReject={() => {
-                setSubmissionStatuses({ ...submissionStatuses, [selectedSubmission.id]: 'rejected' });
-                setSelectedSubmission(null);
-              }}
+              onAccept={() => updateSubmissionStatus(selectedSubmission.id, 'accepted')}
+              onReject={() => updateSubmissionStatus(selectedSubmission.id, 'rejected')}
             />
           ) : (
             <Card>
@@ -528,100 +652,79 @@ export function ClientDashboard({ userName }: { userName?: string }) {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {[
-                    {
-                      id: 1,
-                      annotator: 'Анна Иванова',
-                      task: 'Разметка медицинских снимков МРТ',
-                      submittedAt: '2025-10-24 14:30',
-                      rating: 4.9,
-                    },
-                    {
-                      id: 2,
-                      annotator: 'Михаил Петров',
-                      task: 'Разметка медицинских снимков МРТ',
-                      submittedAt: '2025-10-24 15:15',
-                      rating: 4.7,
-                    },
-                    {
-                      id: 3,
-                      annotator: 'Елена Сидорова',
-                      task: 'Классификация рентгеновских изображений',
-                      submittedAt: '2025-10-24 16:00',
-                      rating: 5.0,
-                    },
-                  ].map((submission) => {
-                    const status = submissionStatuses[submission.id] || 'pending';
+                  {reviews
+                    .filter((submission) => submission.status === 'on_check')
+                    .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
+                    .map((submission) => {
+                      const status = submissionStatuses[submission.id] || submission.status;
 
-                    return (
-                      <Card key={submission.id}>
-                        <CardContent className="pt-6">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
-                                <h4>{submission.task}</h4>
-                                {status === 'pending' && (
-                                  <Badge variant="outline" className="bg-yellow-50">
-                                    На проверке
-                                  </Badge>
-                                )}
-                                {status === 'accepted' && (
-                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                    Принято
-                                  </Badge>
-                                )}
-                                {status === 'rejected' && (
-                                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                                    Отклонено
-                                  </Badge>
-                                )}
+                      return (
+                        <Card key={submission.id}>
+                          <CardContent className="pt-6">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <h4>{submission.task?.title || 'Unknown Task'}</h4>
+                                  {(status === 'on_check' || status === 'submitted') && (
+                                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 font-medium border-0">
+                                      На проверке
+                                    </Badge>
+                                  )}
+                                  {status === 'accepted' && (
+                                    <Badge variant="secondary" className="bg-green-100 text-green-700 font-bold border-0">
+                                      Принято
+                                    </Badge>
+                                  )}
+                                  {status === 'rejected' && (
+                                    <Badge variant="secondary" className="bg-red-100 text-red-700 font-bold border-0">
+                                      Отклонено
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-600 space-y-1">
+                                  <p>Исполнитель: {submission.performer?.name || 'Unknown'}</p>
+                                  <p>Отправлено: {new Date(submission.submitted_at).toLocaleString()}</p>
+                                </div>
                               </div>
-                              <div className="text-sm text-gray-600 space-y-1">
-                                <p>Исполнитель: {submission.annotator} ⭐ {submission.rating}</p>
-                                <p>Отправлено: {submission.submittedAt}</p>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setSelectedSubmission(submission)}
+                                >
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  Просмотр
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-green-600 border-green-600 hover:bg-green-50"
+                                  onClick={() => updateSubmissionStatus(submission.id, 'accepted')}
+                                >
+                                  <Check className="w-4 h-4 mr-2" />
+                                  Принять
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-red-600 border-red-600 hover:bg-red-50"
+                                  onClick={() => updateSubmissionStatus(submission.id, 'rejected')}
+                                >
+                                  <X className="w-4 h-4 mr-2" />
+                                  Отклонить
+                                </Button>
                               </div>
                             </div>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setSelectedSubmission(submission)}
-                              >
-                                <Eye className="w-4 h-4 mr-2" />
-                                Просмотр
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className={status === 'accepted' ? 'bg-green-50 text-green-700 border-green-600' : 'text-green-600 border-green-600 hover:bg-green-50'}
-                                onClick={() => setSubmissionStatuses({ ...submissionStatuses, [submission.id]: 'accepted' })}
-                                disabled={status === 'accepted'}
-                              >
-                                <Check className="w-4 h-4 mr-2" />
-                                Принять
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className={status === 'rejected' ? 'bg-red-50 text-red-700 border-red-600' : 'text-red-600 border-red-600 hover:bg-red-50'}
-                                onClick={() => setSubmissionStatuses({ ...submissionStatuses, [submission.id]: 'rejected' })}
-                                disabled={status === 'rejected'}
-                              >
-                                <X className="w-4 h-4 mr-2" />
-                                Отклонить
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                 </div>
               </CardContent>
             </Card>
           )}
         </TabsContent>
       </Tabs>
-    </div>
+    </div >
   );
 }
