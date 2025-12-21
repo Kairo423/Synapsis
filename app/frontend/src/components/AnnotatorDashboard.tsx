@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Textarea } from './ui/textarea';
-import { CheckCircle2, Clock, DollarSign, Star, TrendingUp, Award, Pencil, Check } from 'lucide-react';
+import { Clock, DollarSign, Star, TrendingUp, Pencil, Check } from 'lucide-react';
 
 export function AnnotatorDashboard({ userName, userId }: { userName: string; userId?: number }) {
   const [description, setDescription] = useState('Загрузка...');
@@ -248,54 +248,7 @@ export function AnnotatorDashboard({ userName, userId }: { userName: string; use
       </Card>
 
       {/* Skills & Badges */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Специализации и достижения</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span>Медицинская визуализация</span>
-                <span className="text-sm text-gray-600">Эксперт</span>
-              </div>
-              <Progress value={95} className="h-2" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span>Сегментация изображений</span>
-                <span className="text-sm text-gray-600">Продвинутый</span>
-              </div>
-              <Progress value={80} className="h-2" />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span>Медицинские тексты</span>
-                <span className="text-sm text-gray-600">Средний</span>
-              </div>
-              <Progress value={60} className="h-2" />
-            </div>
 
-            <div className="pt-4 border-t border-gray-200">
-              <h4 className="mb-3">Значки достижений</h4>
-              <div className="flex gap-2">
-                <Badge variant="outline" className="text-sm">
-                  <Award className="w-3 h-3 mr-1" />
-                  100+ заданий
-                </Badge>
-                <Badge variant="outline" className="text-sm">
-                  <Star className="w-3 h-3 mr-1" />
-                  Топ-10%
-                </Badge>
-                <Badge variant="outline" className="text-sm">
-                  <CheckCircle2 className="w-3 h-3 mr-1" />
-                  Медицина
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

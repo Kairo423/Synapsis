@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+import jwt
 from sqlalchemy.orm import Session
 from database import get_db
 from models.user_models import User
@@ -49,10 +50,17 @@ async def login(login_data: UserLogin, response: Response, db: Session = Depends
         )
 
     token = security.create_access_token(uid=str(user.id))
+    refresh_token = security.create_refresh_token(uid=str(user.id))
 
     response.set_cookie(
         key=config.JWT_ACCESS_COOKIE_NAME,
         value=token,
+        httponly=True
+    )
+    
+    response.set_cookie(
+        key=config.JWT_REFRESH_COOKIE_NAME,
+        value=refresh_token,
         httponly=True
     )
 
@@ -70,7 +78,55 @@ async def logout(response: Response):
     Выход из системы (удаление куки)
     """
     response.delete_cookie(config.JWT_ACCESS_COOKIE_NAME)
+    response.delete_cookie(config.JWT_REFRESH_COOKIE_NAME)
     return {"message": "Успешный выход"}
+
+@router.post("/refresh")
+async def refresh_token(response: Response, request: Request):
+    """
+    Обновление access token через refresh token
+    """
+    refresh_token = request.cookies.get(config.JWT_REFRESH_COOKIE_NAME)
+    
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token отсутствует"
+        )
+        
+    try:
+        payload = jwt.decode(
+            refresh_token,
+            config.JWT_SECRET_KEY,
+            algorithms=["HS256"]
+        )
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Некорректный токен"
+            )
+            
+        new_access_token = security.create_access_token(uid=str(user_id))
+        
+        response.set_cookie(
+            key=config.JWT_ACCESS_COOKIE_NAME,
+            value=new_access_token,
+            httponly=True
+        )
+        
+        return {"message": "Token refreshed"}
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token истек"
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Некорректный refresh token"
+        )
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(user_id: int, current_user = Depends(get_current_user), db: Session = Depends(get_db)):

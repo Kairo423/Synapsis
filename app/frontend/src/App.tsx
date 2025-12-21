@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Home } from './components/Home';
 import { Login } from './components/Login';
 import { Register } from './components/Register';
@@ -32,12 +32,49 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [userData, setUserData] = useState<UserData>({
     name: '',
     email: '',
     role: null,
     onboardingStatus: 'not-started',
   });
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/auth/me', {
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const user: UserData = {
+            id: data.id,
+            name: data.name,
+            email: data.email,
+            role: data.role,
+            onboardingStatus: 'completed',
+          };
+
+          setIsAuthenticated(true);
+          setUserData(user);
+
+          if (data.role === 'executor') {
+            setCurrentView('executor');
+          } else if (data.role === 'provider') {
+            setCurrentView('provider');
+          }
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
 
   const handleLogin = (data: UserData) => {
     setIsAuthenticated(true);
@@ -97,6 +134,14 @@ export default function App() {
   const handleBackToFeed = () => {
     setSelectedTask(null);
   };
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   // Show onboarding if user registered but hasn't completed onboarding, though this logic might need backend support later
   if (userData.onboardingStatus === 'in-progress') {

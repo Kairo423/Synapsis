@@ -16,7 +16,7 @@ export function Home({ onViewChange }: HomeProps) {
         </div>
         <h1 className="text-blue-600">Synapsis</h1>
       </div>
-      
+
       {/* Hero Section */}
       <div className="text-center mb-16">
         <h1 className="mb-4 text-blue-600">
@@ -27,10 +27,7 @@ export function Home({ onViewChange }: HomeProps) {
         </p>
         <div className="flex gap-4 justify-center mt-8">
           <Button size="lg" onClick={() => onViewChange('annotator')}>
-            Стать исполнителем
-          </Button>
-          <Button size="lg" onClick={() => onViewChange('client')}>
-            Разместить задание
+            Войти
           </Button>
         </div>
       </div>
@@ -122,7 +119,7 @@ export function Home({ onViewChange }: HomeProps) {
       {/* How it works */}
       <div className="mb-16">
         <h2 className="text-center mb-12">Как это работает</h2>
-        
+
         <div className="grid md:grid-cols-2 gap-12">
           {/* For Annotators */}
           <div>
