@@ -23,6 +23,7 @@ class UserResponse(UserBase):
     balance: float = 0.0
     is_active: bool = True
     created_at: datetime
+    description: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -37,3 +38,7 @@ class UserUpdate(BaseModel):
     role: Optional[UserRole] = None  # Используем Enum
     password: Optional[str] = None
     avatar_url: Optional[str] = None
+    description: Optional[str] = None
+
+class UserDescriptionUpdate(BaseModel):
+    description: str

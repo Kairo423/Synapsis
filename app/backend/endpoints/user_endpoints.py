@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.orm import Session
 from database import get_db
 from models.user_models import User
-from schemas.user_schemas import UserCreate, UserResponse, UserLogin, UserUpdate
+from schemas.user_schemas import UserCreate, UserResponse, UserLogin, UserUpdate, UserDescriptionUpdate
 from typing import List
 from auth import get_current_user, role_required, security, config
 
@@ -112,6 +112,21 @@ async def get_users(
     users = db.query(User).offset(skip).limit(limit).all()
     return users
 
+@router.put("/description", response_model=UserResponse)
+async def update_user_description(
+    description_update: UserDescriptionUpdate,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Обновление описания текущего пользователя
+    """
+    current_user.description = description_update.description
+    db.commit()
+    db.refresh(current_user)
+    
+    return current_user
+
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: int,
@@ -154,6 +169,8 @@ async def update_user(
     db.refresh(user)
     
     return user
+
+
 
 @router.delete("/{user_id}")
 async def delete_user(user_id: int, current_user = Depends(get_current_user), db: Session = Depends(get_db)):

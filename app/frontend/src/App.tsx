@@ -143,17 +143,7 @@ export default function App() {
               <span className="text-xl">Synapsis</span>
             </div>
             <div className="flex items-center gap-2">
-              {userData.role === 'executor' && (
-                <Button
-                  variant={currentView === 'executor' ? 'default' : 'outline'}
-                  onClick={() => {
-                    setCurrentView('executor');
-                    setSelectedTask(null);
-                  }}
-                >
-                  Мои задания
-                </Button>
-              )}
+
               {userData.role === 'provider' && (
                 <Button
                   variant={currentView === 'provider' ? 'default' : 'outline'}
@@ -165,10 +155,7 @@ export default function App() {
                   Мои проекты
                 </Button>
               )}
-              <div className="h-6 w-px bg-gray-300 mx-2" />
-              <div className="text-sm text-gray-600 px-2">
-                {userData.name}
-              </div>
+
               <Button variant="outline" size="sm" onClick={handleLogout}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Выйти
@@ -191,7 +178,7 @@ export default function App() {
               </TabsList>
 
               <TabsContent value="dashboard">
-                <AnnotatorDashboard />
+                <AnnotatorDashboard userName={userData.name} userId={userData.id} />
               </TabsContent>
 
               <TabsContent value="tasks">
