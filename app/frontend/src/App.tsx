@@ -11,7 +11,7 @@ import { TaskFeed } from './components/TaskFeed';
 import { TaskExecution } from './components/TaskExecution';
 import { Button } from './components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
-import { LogOut } from 'lucide-react';
+import { LogOut, Plus, DollarSign } from 'lucide-react';
 
 type AuthView = 'login' | 'register' | 'forgot-password';
 type View = 'home' | 'executor' | 'provider';
@@ -188,19 +188,17 @@ export default function App() {
               <span className="text-xl">Synapsis</span>
             </div>
             <div className="flex items-center gap-2">
-
               {userData.role === 'provider' && (
-                <Button
-                  variant={currentView === 'provider' ? 'default' : 'outline'}
-                  onClick={() => {
-                    setCurrentView('provider');
-                    setSelectedTask(null);
-                  }}
-                >
-                  Мои проекты
-                </Button>
+                <div className="flex items-center gap-4 mr-4">
+                  <div className="flex items-center gap-2 text-gray-700 font-medium">
+                    <span>125,400₽</span>
+                  </div>
+                  <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700 text-white">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Пополнить баланс
+                  </Button>
+                </div>
               )}
-
               <Button variant="outline" size="sm" onClick={handleLogout}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Выйти
@@ -238,7 +236,7 @@ export default function App() {
         )}
 
         {currentView === 'provider' && userData.role === 'provider' && (
-          <ClientDashboard />
+          <ClientDashboard userName={userData.name} />
         )}
       </main>
     </div>

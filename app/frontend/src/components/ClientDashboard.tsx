@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -8,6 +8,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Alert, AlertDescription } from './ui/alert';
 import { SubmissionReview } from './SubmissionReview';
 import {
   TrendingUp,
@@ -24,22 +25,122 @@ import {
   X,
 } from 'lucide-react';
 
-export function ClientDashboard() {
+export function ClientDashboard({ userName }: { userName?: string }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
   const [submissionStatuses, setSubmissionStatuses] = useState<Record<number, 'pending' | 'accepted' | 'rejected'>>({});
 
+  // Task creation state
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
+  const [customCategory, setCustomCategory] = useState('');
+  const [difficulty, setDifficulty] = useState('');
+  const [price, setPrice] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [repeats, setRepeats] = useState('1');
+  const [fileLink, setFileLink] = useState('');
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  // My Tasks state
+  const [myTasks, setMyTasks] = useState<any[]>([]);
+  const [isLoadingMyTasks, setIsLoadingMyTasks] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'tasks') {
+      fetchMyTasks();
+    }
+  }, [activeTab]);
+
+  const fetchMyTasks = async () => {
+    setIsLoadingMyTasks(true);
+    try {
+      const response = await fetch('http://localhost:8000/tasks/my', {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setMyTasks(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch tasks:', error);
+    } finally {
+      setIsLoadingMyTasks(false);
+    }
+  };
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError('');
+    setSuccess('');
+
+    // Difficulty mapping
+    const difficultyMap: Record<string, string> = {
+      'beginner': 'low',
+      'intermediate': 'mid',
+      'advanced': 'pro',
+      'expert': 'expert'
+    };
+
+    const taskPayload = {
+      title,
+      description,
+      category: category === 'other' ? customCategory : category,
+      difficulty: difficultyMap[difficulty] || difficulty,
+      price: parseFloat(price),
+      deadline: deadline ? new Date(deadline).toISOString() : null,
+      repeats: parseInt(repeats),
+      file_link: fileLink
+    };
+
+    try {
+      const response = await fetch('http://localhost:8000/tasks/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(taskPayload),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Ошибка при создании задания');
+      }
+
+      setSuccess('Задание успешно опубликовано!');
+      // Reset form
+      setTitle('');
+      setDescription('');
+      setCategory('');
+      setCustomCategory('');
+      setDifficulty('');
+      setPrice('');
+      setDeadline('');
+      setRepeats('1');
+      setFileLink('');
+    } catch (err: any) {
+      setError(err.message || 'Произошла ошибка');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1>Дашборд поставщика</h1>
+        <h1>Дашборд поставщика: {userName}</h1>
         <p className="text-gray-600">Управление проектами и заданиями по разметке данных</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="overview">Обзор</TabsTrigger>
-          <TabsTrigger value="projects">Проекты</TabsTrigger>
+          <TabsTrigger value="tasks">Задания</TabsTrigger>
           <TabsTrigger value="create">Создать задание</TabsTrigger>
           <TabsTrigger value="review">Проверка работ</TabsTrigger>
         </TabsList>
@@ -172,78 +273,80 @@ export function ClientDashboard() {
             </CardContent>
           </Card>
 
-          {/* Financial Overview */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Финансы</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Текущий баланс</span>
-                    <span className="text-2xl">125,400₽</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Зарезервировано</span>
-                    <span className="text-xl text-gray-500">45,200₽</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Всего потрачено</span>
-                    <span className="text-xl text-gray-500">342,800₽</span>
-                  </div>
-                  <Button className="w-full mt-4">
-                    <DollarSign className="w-4 h-4 mr-2" />
-                    Пополнить баланс
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Статистика исполнителей</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Всего исполнителей</span>
-                    <span className="text-2xl">47</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Топ-исполнители</span>
-                    <span className="text-xl text-gray-500">12</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Средний рейтинг</span>
-                    <span className="text-xl text-gray-500">4.8 ⭐</span>
-                  </div>
-                  <Button variant="outline" className="w-full mt-4">
-                    <Users className="w-4 h-4 mr-2" />
-                    Управление исполнителями
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </TabsContent>
 
-        {/* Projects Tab */}
-        <TabsContent value="projects" className="space-y-6">
+
+        {/* Tasks Tab */}
+        <TabsContent value="tasks" className="space-y-6">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Все проекты</CardTitle>
+                <CardTitle>Все задания</CardTitle>
                 <Button onClick={() => setActiveTab('create')}>
                   <Plus className="w-4 h-4 mr-2" />
-                  Создать новый проект
+                  Создать новое задание
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12 text-gray-500">
-                <p>Список всех проектов отображается здесь</p>
-              </div>
+              {isLoadingMyTasks ? (
+                <div className="text-center py-12 text-gray-500">Загрузка заданий...</div>
+              ) : myTasks.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p>У вас пока нет созданных заданий</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {myTasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium text-lg">{task.title}</h4>
+                          <Badge variant={
+                            task.status === 'new' ? 'secondary' :
+                              task.status === 'in_progress' ? 'default' :
+                                task.status === 'completed' ? 'success' : 'outline'
+                          }>
+                            {task.status === 'new' && 'Новое'}
+                            {task.status === 'in_progress' && 'В работе'}
+                            {task.status === 'completed' && 'Завершено'}
+                            {task.status === 'review' && 'На проверке'}
+                            {!['new', 'in_progress', 'completed', 'review'].includes(task.status) && task.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1 line-clamp-1">
+                          {task.description}
+                        </p>
+                        <div className="flex gap-4 mt-2 text-sm text-gray-500">
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="w-3 h-3" />
+                            {task.price} ₽
+                          </span>
+                          {task.deadline && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {new Date(task.deadline).toLocaleDateString()}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3" />
+                            {task.repeats} исп.
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm">
+                          Подробнее
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -258,12 +361,26 @@ export function ClientDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form className="space-y-6">
+              <form onSubmit={handleCreateTask} className="space-y-6">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                {success && (
+                  <Alert className="bg-green-50 border-green-200 text-green-800">
+                    <AlertDescription>{success}</AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="title">Название задания</Label>
                   <Input
                     id="title"
                     placeholder="Например: Разметка медицинских снимков"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    required
                   />
                 </div>
 
@@ -273,13 +390,15 @@ export function ClientDashboard() {
                     id="description"
                     placeholder="Опишите задачу, требования и ожидаемый результат..."
                     rows={5}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="category">Специализация</Label>
-                    <Select>
+                    <Select value={category} onValueChange={setCategory}>
                       <SelectTrigger id="category">
                         <SelectValue placeholder="Выберите категорию" />
                       </SelectTrigger>
@@ -288,13 +407,23 @@ export function ClientDashboard() {
                         <SelectItem value="law">Право</SelectItem>
                         <SelectItem value="linguistics">Лингвистика</SelectItem>
                         <SelectItem value="finance">Финансы</SelectItem>
+                        <SelectItem value="other">Другое</SelectItem>
                       </SelectContent>
                     </Select>
+                    {category === 'other' && (
+                      <Input
+                        className="mt-2"
+                        placeholder="Введите свою специализацию"
+                        value={customCategory}
+                        onChange={(e) => setCustomCategory(e.target.value)}
+                        required
+                      />
+                    )}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="difficulty">Уровень сложности</Label>
-                    <Select>
+                    <Select value={difficulty} onValueChange={setDifficulty}>
                       <SelectTrigger id="difficulty">
                         <SelectValue placeholder="Выберите уровень" />
                       </SelectTrigger>
@@ -314,72 +443,60 @@ export function ClientDashboard() {
                     <Input
                       id="reward"
                       type="number"
+                      min="0"
                       placeholder="1000"
+                      className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      required
                     />
-                    <p className="text-sm text-gray-500">
-                      Рекомендуемое: 1,200₽ (на основе сложности)
-                    </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="deadline">Срок выполнения (дни)</Label>
+                    <Label htmlFor="deadline">Дедлайн</Label>
                     <Input
                       id="deadline"
-                      type="number"
-                      placeholder="7"
+                      type="datetime-local"
+                      className="w-full h-10 px-3 py-2"
+                      value={deadline}
+                      onChange={(e) => setDeadline(e.target.value)}
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Количество заданий</Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    placeholder="100"
-                  />
-                  <p className="text-sm text-gray-500">
-                    Сколько исполнителей должны выполнить это задание
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Контроль качества</Label>
+                <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <input type="checkbox" id="cross-validation" />
-                      <Label htmlFor="cross-validation" className="cursor-pointer">
-                        Кросс-валидация (3 исполнителя на задание)
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <input type="checkbox" id="manual-review" />
-                      <Label htmlFor="manual-review" className="cursor-pointer">
-                        Ручная проверка модератором
-                      </Label>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="files">Загрузка файлов</Label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 mb-2">
-                      Перетащите файлы или нажмите для выбора
-                    </p>
+                    <Label htmlFor="quantity">Количество заданий</Label>
+                    <Input
+                      id="quantity"
+                      type="number"
+                      min="1"
+                      placeholder="100"
+                      className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      value={repeats}
+                      onChange={(e) => setRepeats(e.target.value)}
+                      required
+                    />
                     <p className="text-sm text-gray-500">
-                      Поддерживаются: изображения, документы, архивы
+                      Сколько исполнителей должны выполнить это задание
                     </p>
-                    <Button variant="outline" className="mt-4">
-                      Выбрать файлы
-                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="file_link">Ссылка на необходимые файлы</Label>
+                    <Input
+                      id="file_link"
+                      placeholder="https://drive.google.com/..."
+                      value={fileLink}
+                      onChange={(e) => setFileLink(e.target.value)}
+                    />
                   </div>
                 </div>
 
                 <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
-                  <Button variant="outline">Сохранить черновик</Button>
-                  <Button>Опубликовать задание</Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Публикация...' : 'Опубликовать задание'}
+                  </Button>
                 </div>
               </form>
             </CardContent>
@@ -435,7 +552,7 @@ export function ClientDashboard() {
                     },
                   ].map((submission) => {
                     const status = submissionStatuses[submission.id] || 'pending';
-                    
+
                     return (
                       <Card key={submission.id}>
                         <CardContent className="pt-6">
@@ -465,17 +582,17 @@ export function ClientDashboard() {
                               </div>
                             </div>
                             <div className="flex gap-2">
-                              <Button 
-                                variant="outline" 
+                              <Button
+                                variant="outline"
                                 size="sm"
                                 onClick={() => setSelectedSubmission(submission)}
                               >
                                 <Eye className="w-4 h-4 mr-2" />
                                 Просмотр
                               </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 className={status === 'accepted' ? 'bg-green-50 text-green-700 border-green-600' : 'text-green-600 border-green-600 hover:bg-green-50'}
                                 onClick={() => setSubmissionStatuses({ ...submissionStatuses, [submission.id]: 'accepted' })}
                                 disabled={status === 'accepted'}
@@ -483,9 +600,9 @@ export function ClientDashboard() {
                                 <Check className="w-4 h-4 mr-2" />
                                 Принять
                               </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 className={status === 'rejected' ? 'bg-red-50 text-red-700 border-red-600' : 'text-red-600 border-red-600 hover:bg-red-50'}
                                 onClick={() => setSubmissionStatuses({ ...submissionStatuses, [submission.id]: 'rejected' })}
                                 disabled={status === 'rejected'}

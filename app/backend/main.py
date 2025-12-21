@@ -2,9 +2,11 @@ from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from endpoints.user_endpoints import router as users_router, auth_router
+from endpoints.task_endpoints import router as tasks_router
 from auth import get_current_user
 from database import engine, Base, get_db
 import models.user_models
+import models.task_models
 import uvicorn
 
 app = FastAPI(
@@ -25,6 +27,7 @@ app.add_middleware(
 # Подключаем роутеры
 app.include_router(users_router)
 app.include_router(auth_router)
+app.include_router(tasks_router)
 
 
 @app.on_event("startup")

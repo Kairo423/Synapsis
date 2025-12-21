@@ -11,6 +11,11 @@ class Task(Base):
     description = Column(Text, nullable=True)
     status = Column(String, default="new", nullable=False) # new, in_progress, review, completed, cancelled
     price = Column(Float, nullable=False)
+    category = Column(String, nullable=True)
+    difficulty = Column(String, nullable=True) # low, min, pro, expert
+    deadline = Column(DateTime(timezone=True), nullable=True)
+    repeats = Column(Integer, default=1, nullable=False)
+    file_link = Column(String, nullable=True)
     customer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     performer_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

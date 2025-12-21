@@ -153,7 +153,7 @@ export function ArchitectureDocs() {
                         <li>• <strong>User Service:</strong> Профили и верификация пользователей</li>
                         <li>• <strong>Payment Service:</strong> Финансовые транзакции</li>
                         <li>• <strong>Notification Service:</strong> Уведомления в реальном времени</li>
-                        <li>• <strong>Quality Service:</strong> Контроль качества разметки</li>
+
                       </ul>
                     </CardContent>
                   </Card>
@@ -337,7 +337,7 @@ export function ArchitectureDocs() {
                         <div className="flex items-start gap-3 mb-2">
                           <Badge className={
                             api.method === 'GET' ? 'bg-green-600' :
-                            api.method === 'PATCH' ? 'bg-yellow-600' : 'bg-blue-600'
+                              api.method === 'PATCH' ? 'bg-yellow-600' : 'bg-blue-600'
                           }>
                             {api.method}
                           </Badge>
@@ -615,7 +615,7 @@ export function ArchitectureDocs() {
                       ['required_expertise', 'JSONB', 'Массив требуемых навыков'],
                       ['data_url', 'TEXT', 'Ссылка на данные'],
                       ['instructions_url', 'TEXT', 'Инструкции'],
-                      ['quality_settings', 'JSONB', 'Настройки контроля качества'],
+
                       ['estimated_time', 'INTEGER', 'Минуты'],
                       ['deadline', 'TIMESTAMP', 'NULL'],
                       ['created_at', 'TIMESTAMP', 'DEFAULT NOW()'],

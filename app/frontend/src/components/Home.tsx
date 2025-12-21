@@ -62,8 +62,6 @@ export function Home({ onViewChange }: HomeProps) {
           </CardHeader>
           <CardContent>
             <ul className="space-y-2 text-gray-600">
-              <li>• Контроль качества</li>
-              <li>• Кросс-валидация</li>
               <li>• Гибкая настройка ТЗ</li>
               <li>• Аналитика в реальном времени</li>
             </ul>
@@ -183,7 +181,7 @@ export function Home({ onViewChange }: HomeProps) {
                 </div>
                 <div>
                   <h4 className="mb-1">Настройте требования</h4>
-                  <p className="text-gray-600">Укажите специализацию, уровень экспертизы, контроль качества</p>
+                  <p className="text-gray-600">Укажите специализацию, уровень экспертизы</p>
                 </div>
               </div>
               <div className="flex gap-4">
@@ -201,7 +199,7 @@ export function Home({ onViewChange }: HomeProps) {
                 </div>
                 <div>
                   <h4 className="mb-1">Проверьте результаты</h4>
-                  <p className="text-gray-600">Автоматическая или ручная проверка качества</p>
+                  <p className="text-gray-600">Проверка результатов через дашборд</p>
                 </div>
               </div>
             </div>
