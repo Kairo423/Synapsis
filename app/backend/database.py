@@ -4,7 +4,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
-load_dotenv()
+from pathlib import Path
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent.parent / ".env")
 
 # Читаем переменные окружения. Если внутри контейнера переменная не задана,
 # подставляем разумные значения по умолчанию где это уместно.
