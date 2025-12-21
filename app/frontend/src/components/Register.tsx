@@ -8,13 +8,13 @@ import { Eye, EyeOff, Lock, Mail, User, Briefcase, Users } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 
 interface RegisterProps {
-  onRegister: (role: 'annotator' | 'client', email: string, name: string) => void;
+  onRegisterSuccess: () => void;
   onNavigate: (view: 'login') => void;
 }
 
-export function Register({ onRegister, onNavigate }: RegisterProps) {
+export function Register({ onRegisterSuccess, onNavigate }: RegisterProps) {
   const [step, setStep] = useState(1);
-  const [role, setRole] = useState<'annotator' | 'client'>('annotator');
+  const [role, setRole] = useState<'executor' | 'provider'>('executor');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -45,11 +45,32 @@ export function Register({ onRegister, onNavigate }: RegisterProps) {
 
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      onRegister(role, formData.email, formData.name);
+    try {
+      const response = await fetch('http://localhost:8000/users/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          name: formData.name,
+          role: role,
+          password: formData.password,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Ошибка регистрации');
+      }
+
+      // Registration successful
+      onRegisterSuccess();
+    } catch (err: any) {
+      setError(err.message || 'Произошла ошибка при регистрации');
+    } finally {
       setIsLoading(false);
-    }, 800);
+    }
   };
 
   return (
@@ -69,16 +90,15 @@ export function Register({ onRegister, onNavigate }: RegisterProps) {
         <CardContent>
           {step === 1 ? (
             <div className="space-y-6">
-              <RadioGroup value={role} onValueChange={(value: string) => setRole(value as 'annotator' | 'client')}>
+              <RadioGroup value={role} onValueChange={(value: string) => setRole(value as 'executor' | 'provider')}>
                 <div
-                  className={`relative flex items-start space-x-3 rounded-lg border-2 p-4 cursor-pointer transition-colors ${
-                    role === 'annotator' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => setRole('annotator')}
+                  className={`relative flex items-start space-x-3 rounded-lg border-2 p-4 cursor-pointer transition-colors ${role === 'executor' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  onClick={() => setRole('executor')}
                 >
-                  <RadioGroupItem value="annotator" id="annotator" className="mt-1" />
+                  <RadioGroupItem value="executor" id="executor" className="mt-1" />
                   <div className="flex-1">
-                    <Label htmlFor="annotator" className="flex items-center gap-2 cursor-pointer">
+                    <Label htmlFor="executor" className="flex items-center gap-2 cursor-pointer">
                       <Users className="w-5 h-5 text-blue-600" />
                       <span>Исполнитель</span>
                     </Label>
@@ -89,14 +109,13 @@ export function Register({ onRegister, onNavigate }: RegisterProps) {
                 </div>
 
                 <div
-                  className={`relative flex items-start space-x-3 rounded-lg border-2 p-4 cursor-pointer transition-colors ${
-                    role === 'client' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => setRole('client')}
+                  className={`relative flex items-start space-x-3 rounded-lg border-2 p-4 cursor-pointer transition-colors ${role === 'provider' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  onClick={() => setRole('provider')}
                 >
-                  <RadioGroupItem value="client" id="client" className="mt-1" />
+                  <RadioGroupItem value="provider" id="provider" className="mt-1" />
                   <div className="flex-1">
-                    <Label htmlFor="client" className="flex items-center gap-2 cursor-pointer">
+                    <Label htmlFor="provider" className="flex items-center gap-2 cursor-pointer">
                       <Briefcase className="w-5 h-5 text-blue-600" />
                       <span>Поставщик</span>
                     </Label>

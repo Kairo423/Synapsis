@@ -5,9 +5,10 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Alert, AlertDescription } from './ui/alert';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { UserData } from '../App';
 
 interface LoginProps {
-  onLogin: (role: 'annotator' | 'client') => void;
+  onLogin: (data: UserData) => void;
   onNavigate: (view: 'register' | 'forgot-password') => void;
 }
 
@@ -23,17 +24,43 @@ export function Login({ onLogin, onNavigate }: LoginProps) {
     setError('');
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      if (email && password) {
-        // Mock: determine role based on email
-        const role = email.includes('client') ? 'client' : 'annotator';
-        onLogin(role);
-      } else {
-        setError('Пожалуйста, заполните все поля');
+    try {
+      const response = await fetch('http://localhost:8000/users/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Ошибка входа');
       }
+
+      const data = await response.json();
+
+      // Backend returns: access_token, user_id, role, name
+      const userData: UserData = {
+        id: data.user_id,
+        name: data.name,
+        email: email,
+        role: data.role as 'executor' | 'provider' | 'admin',
+        onboardingStatus: 'completed', // Assuming completed for now
+        access_token: data.access_token,
+      };
+
+      onLogin(userData);
+
+    } catch (err: any) {
+      setError(err.message || 'Произошла ошибка при входе');
+    } finally {
       setIsLoading(false);
-    }, 800);
+    }
   };
 
   return (
@@ -136,15 +163,6 @@ export function Login({ onLogin, onNavigate }: LoginProps) {
                 </button>
               </p>
             </div>
-          </div>
-
-          <div className="mt-6 p-3 bg-blue-50 rounded-lg">
-            <p className="text-xs text-gray-600 text-center">
-              <strong>Для демонстрации:</strong><br />
-              Исполнитель: annotator@demo.com<br />
-              Поставщик: client@demo.com<br />
-              Пароль: любой
-            </p>
           </div>
         </CardContent>
       </Card>

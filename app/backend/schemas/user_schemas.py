@@ -7,6 +7,7 @@ class UserRole(str, Enum):
     CUSTOMER = "customer"
     EXECUTOR = "executor"
     ADMIN = "admin"
+    PROVIDER = "provider"
 
 class UserBase(BaseModel):
     email: EmailStr

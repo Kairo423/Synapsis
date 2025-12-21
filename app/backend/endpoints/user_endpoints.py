@@ -64,6 +64,14 @@ async def login(login_data: UserLogin, response: Response, db: Session = Depends
         "name": user.name
     }
 
+@router.post("/logout")
+async def logout(response: Response):
+    """
+    Выход из системы (удаление куки)
+    """
+    response.delete_cookie(config.JWT_ACCESS_COOKIE_NAME)
+    return {"message": "Успешный выход"}
+
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(user_id: int, current_user = Depends(get_current_user), db: Session = Depends(get_db)):
     """

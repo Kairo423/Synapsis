@@ -14,14 +14,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { LogOut } from 'lucide-react';
 
 type AuthView = 'login' | 'register' | 'forgot-password';
-type View = 'home' | 'annotator' | 'client';
+type View = 'home' | 'executor' | 'provider';
 type OnboardingStatus = 'not-started' | 'in-progress' | 'completed';
 
-interface UserData {
+export interface UserData {
+  id?: number;
   name: string;
   email: string;
-  role: 'annotator' | 'client' | null;
+  role: 'executor' | 'provider' | 'admin' | null;
   onboardingStatus: OnboardingStatus;
+  access_token?: string;
 }
 
 export default function App() {
@@ -37,24 +39,23 @@ export default function App() {
     onboardingStatus: 'not-started',
   });
 
-  const handleLogin = (role: 'annotator' | 'client') => {
+  const handleLogin = (data: UserData) => {
     setIsAuthenticated(true);
     setUserData({
-      name: 'Демо пользователь',
-      email: 'demo@example.com',
-      role,
-      onboardingStatus: 'completed', // Skip onboarding for demo
+      ...data,
+      onboardingStatus: 'completed', // Assuming API returns active users
     });
-    setCurrentView(role);
+    if (data.role === 'executor') {
+      setCurrentView('executor');
+    } else if (data.role === 'provider') {
+      setCurrentView('provider');
+    } else {
+      setCurrentView('home');
+    }
   };
 
-  const handleRegister = (role: 'annotator' | 'client', email: string, name: string) => {
-    setUserData({
-      name,
-      email,
-      role,
-      onboardingStatus: 'in-progress',
-    });
+  const handleRegisterSuccess = () => {
+    setAuthView('login');
   };
 
   const handleOnboardingComplete = () => {
@@ -63,10 +64,20 @@ export default function App() {
       onboardingStatus: 'completed',
     });
     setIsAuthenticated(true);
-    setCurrentView(userData.role!);
+    if (userData.role === 'executor') setCurrentView('executor');
+    if (userData.role === 'provider') setCurrentView('provider');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('http://localhost:8000/users/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+
     setIsAuthenticated(false);
     setUserData({
       name: '',
@@ -87,12 +98,12 @@ export default function App() {
     setSelectedTask(null);
   };
 
-  // Show onboarding if user registered but hasn't completed onboarding
+  // Show onboarding if user registered but hasn't completed onboarding, though this logic might need backend support later
   if (userData.onboardingStatus === 'in-progress') {
-    if (userData.role === 'annotator') {
+    if (userData.role === 'executor') {
       return <AnnotatorOnboarding userName={userData.name} onComplete={handleOnboardingComplete} />;
     }
-    if (userData.role === 'client') {
+    if (userData.role === 'provider') {
       return <ClientOnboarding userName={userData.name} onComplete={handleOnboardingComplete} />;
     }
   }
@@ -111,7 +122,7 @@ export default function App() {
       return <Login onLogin={handleLogin} onNavigate={setAuthView} />;
     }
     if (authView === 'register') {
-      return <Register onRegister={handleRegister} onNavigate={setAuthView} />;
+      return <Register onRegisterSuccess={handleRegisterSuccess} onNavigate={setAuthView} />;
     }
     if (authView === 'forgot-password') {
       return <ForgotPassword onNavigate={setAuthView} />;
@@ -132,22 +143,22 @@ export default function App() {
               <span className="text-xl">Synapsis</span>
             </div>
             <div className="flex items-center gap-2">
-              {userData.role === 'annotator' && (
+              {userData.role === 'executor' && (
                 <Button
-                  variant={currentView === 'annotator' ? 'default' : 'outline'}
+                  variant={currentView === 'executor' ? 'default' : 'outline'}
                   onClick={() => {
-                    setCurrentView('annotator');
+                    setCurrentView('executor');
                     setSelectedTask(null);
                   }}
                 >
                   Мои задания
                 </Button>
               )}
-              {userData.role === 'client' && (
+              {userData.role === 'provider' && (
                 <Button
-                  variant={currentView === 'client' ? 'default' : 'outline'}
+                  variant={currentView === 'provider' ? 'default' : 'outline'}
                   onClick={() => {
-                    setCurrentView('client');
+                    setCurrentView('provider');
                     setSelectedTask(null);
                   }}
                 >
@@ -169,20 +180,20 @@ export default function App() {
 
       {/* Main Content */}
       <main>
-        {currentView === 'home' && <Home onViewChange={setCurrentView} />}
-        
-        {currentView === 'annotator' && userData.role === 'annotator' && (
+        {currentView === 'home' && <Home onViewChange={setCurrentView as any} />}
+
+        {currentView === 'executor' && userData.role === 'executor' && (
           <div className="container mx-auto px-4 py-8">
             <Tabs defaultValue="dashboard" className="w-full">
               <TabsList className="grid w-full max-w-md grid-cols-2">
                 <TabsTrigger value="dashboard">Личный кабинет</TabsTrigger>
                 <TabsTrigger value="tasks">Лента заданий</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="dashboard">
                 <AnnotatorDashboard />
               </TabsContent>
-              
+
               <TabsContent value="tasks">
                 {selectedTask ? (
                   <TaskExecution task={selectedTask} onBack={handleBackToFeed} />
@@ -193,8 +204,8 @@ export default function App() {
             </Tabs>
           </div>
         )}
-        
-        {currentView === 'client' && userData.role === 'client' && (
+
+        {currentView === 'provider' && userData.role === 'provider' && (
           <ClientDashboard />
         )}
       </main>
