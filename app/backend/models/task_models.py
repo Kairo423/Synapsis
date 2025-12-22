@@ -24,14 +24,14 @@ class Task(Base):
     # Relationships can be added here if needed, e.g.
     customer = relationship("User", foreign_keys=[customer_id])
     performer = relationship("User", foreign_keys=[performer_id])
-    attachments = relationship("TaskAttachment", back_populates="task")
-    responses = relationship("TaskResponse", back_populates="task")
+    attachments = relationship("TaskAttachment", back_populates="task", cascade="all, delete-orphan")
+    responses = relationship("TaskResponse", back_populates="task", cascade="all, delete-orphan")
 
 class TaskAttachment(Base):
     __tablename__ = "task_attachments"
 
     id = Column(Integer, primary_key=True, index=True)
-    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
     file_url = Column(String, nullable=False)
     filename = Column(String, nullable=False)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -42,7 +42,7 @@ class TaskResponse(Base):
     __tablename__ = "task_responses"
 
     id = Column(Integer, primary_key=True, index=True)
-    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
     performer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     comment = Column(Text, nullable=True)
     attachment_url = Column(String, nullable=True)

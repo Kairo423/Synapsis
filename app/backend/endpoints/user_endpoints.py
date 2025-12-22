@@ -2,8 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 import jwt
 from sqlalchemy.orm import Session
 from database import get_db
-from models.user_models import User
-from schemas.user_schemas import UserCreate, UserResponse, UserLogin, UserUpdate, UserDescriptionUpdate
+from models.user_models import User, PasswordResetCode
+from schemas.user_schemas import (
+    UserCreate, UserResponse, UserLogin, UserUpdate, 
+    UserDescriptionUpdate, PasswordResetRequest, PasswordResetConfirm
+)
+import random
+import string
+from utils.email import send_reset_code
 from typing import List
 from auth import get_current_user, role_required, security, config
 
@@ -323,6 +329,74 @@ async def customer_access(current_user = Depends(get_current_user)):
             detail=f"У вас нет доступа, так как вы не customer либо admin. Ваша роль: '{current_user.role}'"
         )
     return {"message": "Добро пожаловать, customer!", "user_id": current_user.id, "email": current_user.email, "role": current_user.role}
+
+
+@auth_router.post("/password-reset/request")
+async def request_password_reset(request: PasswordResetRequest, db: Session = Depends(get_db)):
+    """
+    Запрос на восстановление пароля. Генерирует код и "отправляет" его на почту.
+    """
+    user = db.query(User).filter(User.email == request.email).first()
+    if not user:
+        # Для безопасности не сообщаем, существует ли такой email
+        return {"message": "Если такой email зарегистрирован, код подтверждения был отправлен"}
+
+    # Генерируем 6-значный код
+    code = ''.join(random.choices(string.digits, k=6))
+    
+    # Сохраняем код в базе (удаляем старые неиспользованные коды для этого email)
+    db.query(PasswordResetCode).filter(PasswordResetCode.email == request.email, PasswordResetCode.is_used == False).delete()
+    
+    reset_code = PasswordResetCode(email=request.email, code=code)
+    db.add(reset_code)
+    db.commit()
+    
+    # Отправка email
+    if not send_reset_code(request.email, code):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ошибка при отправке письма. Проверьте настройки SMTP."
+        )
+    
+    return {"message": "Код подтверждения отправлен на почту"}
+
+@auth_router.post("/password-reset/confirm")
+async def confirm_password_reset(confirm: PasswordResetConfirm, db: Session = Depends(get_db)):
+    """
+    Подтверждение восстановления пароля с использованием кода.
+    """
+    reset_record = db.query(PasswordResetCode).filter(
+        PasswordResetCode.email == confirm.email,
+        PasswordResetCode.code == confirm.code,
+        PasswordResetCode.is_used == False
+    ).first()
+    
+    if not reset_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный код или email"
+        )
+    
+    # Проверка срока действия (например, 15 минут)
+    from datetime import datetime, timezone, timedelta
+    if datetime.now(timezone.utc) - reset_record.created_at.replace(tzinfo=timezone.utc) > timedelta(minutes=15):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Срок действия кода истек"
+        )
+        
+    user = db.query(User).filter(User.email == confirm.email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Пользователь не найден"
+        )
+        
+    user.set_password(confirm.new_password)
+    reset_record.is_used = True
+    db.commit()
+    
+    return {"message": "Пароль успешно изменен"}
 
 
 __all__ = ["router", "auth_router"]

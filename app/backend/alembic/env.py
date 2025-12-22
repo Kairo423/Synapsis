@@ -7,7 +7,7 @@ from alembic import context
 
 # import models to register them with Base.metadata
 from database import Base, DATABASE_URL
-from models.user_models import User
+from models.user_models import User, PasswordResetCode
 from models.task_models import Task, TaskAttachment, TaskResponse
 
 # this is the Alembic Config object, which provides

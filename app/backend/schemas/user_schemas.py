@@ -19,7 +19,6 @@ class UserCreate(UserBase):
 
 class UserResponse(UserBase):
     id: int
-    rating: float = 0.0
     balance: float = 0.0
     is_active: bool = True
     created_at: datetime
@@ -42,3 +41,11 @@ class UserUpdate(BaseModel):
 
 class UserDescriptionUpdate(BaseModel):
     description: str
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+class PasswordResetConfirm(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str

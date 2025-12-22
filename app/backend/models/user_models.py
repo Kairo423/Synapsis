@@ -13,7 +13,6 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     role = Column(String, nullable=False)  # "customer" или "executor"
     name = Column(String, nullable=False)
-    rating = Column(Float, default=0.0)
     balance = Column(Float, default=0.0)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -35,3 +34,12 @@ class User(Base):
                     self.set_password(value)
                 else:
                     setattr(self, key, value)
+
+class PasswordResetCode(Base):
+    __tablename__ = "password_reset_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True, nullable=False)
+    code = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_used = Column(Boolean, default=False)
