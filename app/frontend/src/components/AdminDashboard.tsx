@@ -6,6 +6,7 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { Badge } from './ui/badge';
 
 type CatalogType = 'domain' | 'skill' | 'taskType' | 'taskStatus' | 'contractStatus';
 
@@ -258,7 +259,10 @@ export function AdminDashboard() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1>Админ-панель Synapsis</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1>Админ-панель Synapsis</h1>
+          <Badge className="bg-amber-100 text-amber-900 border-0">Админ</Badge>
+        </div>
         <p className="text-gray-600">Модерация, справочники, статистика и отчеты</p>
       </div>
 

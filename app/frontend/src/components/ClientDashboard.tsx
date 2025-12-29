@@ -9,6 +9,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { SubmissionReview } from './SubmissionReview';
 import { ExpertSearch } from './ExpertSearch';
 import { ProjectChat } from './ProjectChat';
@@ -23,6 +24,7 @@ import {
   X,
   Trash2,
   Pencil,
+  Star,
 } from 'lucide-react';
 
 export function ClientDashboard({ userName, userId, refreshBalance }: { userName?: string; userId?: number; refreshBalance?: () => void }) {
@@ -34,6 +36,15 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
   const [domains, setDomains] = useState<any[]>([]);
   const [skillsCatalog, setSkillsCatalog] = useState<any[]>([]);
   const [taskTypes, setTaskTypes] = useState<any[]>([]);
+  const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
+  const [isLoadingPayments, setIsLoadingPayments] = useState(false);
+  const [expertDialog, setExpertDialog] = useState<{ id: number; name: string } | null>(null);
+  const [expertProfile, setExpertProfile] = useState<any | null>(null);
+  const [expertSkills, setExpertSkills] = useState<any[]>([]);
+  const [expertReviews, setExpertReviews] = useState<any[]>([]);
+  const [expertHistory, setExpertHistory] = useState<any[]>([]);
+  const [expertRating, setExpertRating] = useState<{ average_rating: number; total_reviews: number } | null>(null);
+  const [isLoadingExpert, setIsLoadingExpert] = useState(false);
 
   // Task creation state
   const [title, setTitle] = useState('');
@@ -74,6 +85,8 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       fetchContracts();
     } else if (activeTab === 'contracts' && userId) {
       fetchContracts();
+    } else if (activeTab === 'payments' && userId) {
+      fetchPayments();
     }
   }, [activeTab, userId]);
 
@@ -110,6 +123,23 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
     }
   };
 
+  const fetchPayments = async () => {
+    setIsLoadingPayments(true);
+    try {
+      const response = await fetch('http://localhost:8000/payments/history', {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPaymentHistory(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch payment history:', error);
+    } finally {
+      setIsLoadingPayments(false);
+    }
+  };
+
   const fetchContracts = async () => {
     if (!userId) return;
     try {
@@ -122,6 +152,40 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       }
     } catch (error) {
       console.error('Failed to fetch contracts:', error);
+    }
+  };
+
+  const getDomainName = (domainId: number | null) => {
+    if (!domainId) return 'Не указано';
+    return domains.find((domain) => domain.id === domainId)?.name || `Область #${domainId}`;
+  };
+
+  const getSkillName = (skillId: number) => {
+    return skillsCatalog.find((skill) => skill.id === skillId)?.name || `Навык #${skillId}`;
+  };
+
+  const openExpertDialog = async (submission: any) => {
+    const expertId = submission.performer_id;
+    if (!expertId) return;
+    setExpertDialog({ id: expertId, name: submission.performer?.name || `Эксперт #${expertId}` });
+    setIsLoadingExpert(true);
+    try {
+      const [profileRes, skillsRes, reviewsRes, historyRes, ratingRes] = await Promise.all([
+        fetch(`http://localhost:8000/experts/${expertId}`, { credentials: 'include' }),
+        fetch(`http://localhost:8000/experts/${expertId}/skills`, { credentials: 'include' }),
+        fetch(`http://localhost:8000/reviews/user/${expertId}`, { credentials: 'include' }),
+        fetch(`http://localhost:8000/experts/${expertId}/history`, { credentials: 'include' }),
+        fetch(`http://localhost:8000/reviews/user/${expertId}/rating`, { credentials: 'include' }),
+      ]);
+      if (profileRes.ok) setExpertProfile(await profileRes.json());
+      if (skillsRes.ok) setExpertSkills(await skillsRes.json());
+      if (reviewsRes.ok) setExpertReviews(await reviewsRes.json());
+      if (historyRes.ok) setExpertHistory(await historyRes.json());
+      if (ratingRes.ok) setExpertRating(await ratingRes.json());
+    } catch (error) {
+      console.error('Failed to fetch expert profile', error);
+    } finally {
+      setIsLoadingExpert(false);
     }
   };
 
@@ -382,6 +446,25 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
     }
   };
 
+  const updateContractStatus = async (contractId: number, status: string) => {
+    try {
+      const response = await fetch(`http://localhost:8000/contracts/${contractId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Не удалось обновить статус контракта');
+      }
+      const updated = await response.json();
+      setContracts((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (error: any) {
+      alert(error.message || 'Ошибка при обновлении контракта');
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
@@ -396,6 +479,7 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
           <TabsTrigger value="create">Создать задание</TabsTrigger>
           <TabsTrigger value="review">Проверка работ</TabsTrigger>
           <TabsTrigger value="contracts">Контракты</TabsTrigger>
+          <TabsTrigger value="payments">Платежи</TabsTrigger>
           <TabsTrigger value="experts">Эксперты</TabsTrigger>
         </TabsList>
 
@@ -960,6 +1044,13 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  onClick={() => openExpertDialog(submission)}
+                                >
+                                  Профиль
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
                                   disabled={Boolean(contract)}
                                   onClick={async () => {
                                     try {
@@ -1026,9 +1117,54 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                           <p>Исполнитель ID: {contract.performer_id}</p>
                           <p>Стоимость: {contract.agreed_price ?? '—'} ₽</p>
                         </div>
+                        <div className="flex flex-wrap gap-2">
+                          {contract.status === 'review' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => updateContractStatus(contract.id, 'completed')}
+                            >
+                              Подтвердить завершение
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Payments Tab */}
+        <TabsContent value="payments" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>История платежей</CardTitle>
+              <CardDescription>Все операции по завершенным работам</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingPayments ? (
+                <div className="text-center py-12 text-gray-500">Загрузка...</div>
+              ) : paymentHistory.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">Платежей пока нет</div>
+              ) : (
+                <div className="space-y-3">
+                  {paymentHistory.map((item: any) => (
+                    <div key={`${item.response_id}-${item.contract_id ?? 'x'}`} className="border rounded-lg p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="font-medium">{item.task_title}</div>
+                        <div className={`text-sm font-semibold ${item.direction === 'outcome' ? 'text-red-600' : 'text-green-600'}`}>
+                          {item.direction === 'outcome' ? '-' : '+'}{item.amount} ₽
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {item.counterparty_name ? `Контрагент: ${item.counterparty_name}` : `Контрагент #${item.counterparty_id}`} ·{' '}
+                        {item.occurred_at ? new Date(item.occurred_at).toLocaleString() : '—'}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
@@ -1040,6 +1176,102 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
           <ExpertSearch />
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={Boolean(expertDialog)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setExpertDialog(null);
+            setExpertProfile(null);
+            setExpertSkills([]);
+            setExpertReviews([]);
+            setExpertHistory([]);
+            setExpertRating(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[620px]">
+          <DialogHeader>
+            <DialogTitle>Профиль эксперта</DialogTitle>
+          </DialogHeader>
+          {expertDialog && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-semibold text-slate-900">{expertDialog.name}</h3>
+                <p className="text-sm text-slate-500">
+                  {getDomainName(expertProfile?.main_domain_id ?? null)}
+                </p>
+              </div>
+              {expertRating && (
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <div className="flex items-center gap-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`w-4 h-4 ${
+                          i < Math.round(expertRating.average_rating)
+                            ? 'text-yellow-500 fill-yellow-500'
+                            : 'text-gray-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span>
+                    {expertRating.average_rating.toFixed(1)} · {expertRating.total_reviews} отзывов
+                  </span>
+                </div>
+              )}
+              {expertProfile?.bio && (
+                <p className="text-sm text-slate-700">{expertProfile.bio}</p>
+              )}
+              {isLoadingExpert ? (
+                <div className="text-sm text-gray-500">Загрузка профиля...</div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {expertSkills.map((item: any) => (
+                      <Badge key={`expert-skill-${item.skill_id}`} variant="outline">
+                        {getSkillName(item.skill_id)} · {item.level}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-slate-900">История работ</h4>
+                    {expertHistory.length === 0 ? (
+                      <p className="text-sm text-slate-500">Нет завершенных работ</p>
+                    ) : (
+                      expertHistory.slice(0, 5).map((item: any) => (
+                        <div key={`${item.task_id}-${item.completed_at}`} className="border rounded-lg p-3 text-sm text-slate-700">
+                          <div className="font-medium">{item.task_title}</div>
+                          <div className="text-xs text-slate-400">
+                            {item.price} ₽ · {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : '—'}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-slate-900">Отзывы</h4>
+                    {expertReviews.length === 0 ? (
+                      <p className="text-sm text-slate-500">Пока нет отзывов</p>
+                    ) : (
+                      expertReviews.slice(0, 3).map((review: any) => (
+                        <div key={review.id} className="border rounded-lg p-3 text-sm text-slate-700">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span>Оценка: {review.rating}</span>
+                            <span className="text-xs text-slate-400">Отзыв #{review.id}</span>
+                          </div>
+                          <p>{review.comment || 'Без комментария'}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div >
   );
 }

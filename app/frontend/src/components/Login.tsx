@@ -10,14 +10,16 @@ import { UserData } from '../App';
 interface LoginProps {
   onLogin: (data: UserData) => void;
   onNavigate: (view: 'register' | 'forgot-password') => void;
+  mode?: 'default' | 'admin';
 }
 
-export function Login({ onLogin, onNavigate }: LoginProps) {
+export function Login({ onLogin, onNavigate, mode = 'default' }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const isAdmin = mode === 'admin';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,17 +66,32 @@ export function Login({ onLogin, onNavigate }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div
+      className={`min-h-screen flex items-center justify-center p-4 ${
+        isAdmin ? 'bg-gradient-to-br from-slate-900 to-slate-700' : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+      }`}
+    >
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
+          {isAdmin && (
+            <div className="mb-3 rounded-lg bg-amber-100 text-amber-900 px-3 py-2 text-xs font-semibold text-center">
+              Админ‑панель · доступ только для администраторов
+            </div>
+          )}
           <div className="flex items-center justify-center mb-4">
-            <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white text-xl">S</span>
+            <div
+              className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                isAdmin ? 'bg-slate-900' : 'bg-blue-600'
+              }`}
+            >
+              <span className="text-white text-xl">{isAdmin ? 'A' : 'S'}</span>
             </div>
           </div>
-          <CardTitle className="text-2xl text-center">Вход в Synapsis</CardTitle>
+          <CardTitle className="text-2xl text-center">
+            {isAdmin ? 'Вход в админ‑панель' : 'Вход в Synapsis'}
+          </CardTitle>
           <CardDescription className="text-center">
-            Введите ваши учетные данные для входа
+            {isAdmin ? 'Используйте учетную запись администратора' : 'Введите ваши учетные данные для входа'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -92,7 +109,9 @@ export function Login({ onLogin, onNavigate }: LoginProps) {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="your@email.com"
+                  name={isAdmin ? 'admin-email' : 'email'}
+                  autoComplete={isAdmin ? 'off' : 'email'}
+                  placeholder={isAdmin ? 'admin@local.dev' : 'your@email.com'}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-9"
@@ -117,6 +136,8 @@ export function Login({ onLogin, onNavigate }: LoginProps) {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
+                  name={isAdmin ? 'admin-password' : 'password'}
+                  autoComplete={isAdmin ? 'new-password' : 'current-password'}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -142,28 +163,30 @@ export function Login({ onLogin, onNavigate }: LoginProps) {
             </Button>
           </form>
 
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
+          {!isAdmin && (
+            <div className="mt-6">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">Или</span>
+                </div>
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Или</span>
-              </div>
-            </div>
 
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                Нет аккаунта?{' '}
-                <button
-                  onClick={() => onNavigate('register')}
-                  className="text-blue-600 hover:underline"
-                >
-                  Зарегистрироваться
-                </button>
-              </p>
+              <div className="mt-6 text-center">
+                <p className="text-sm text-gray-600">
+                  Нет аккаунта?{' '}
+                  <button
+                    onClick={() => onNavigate('register')}
+                    className="text-blue-600 hover:underline"
+                  >
+                    Зарегистрироваться
+                  </button>
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

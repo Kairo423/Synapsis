@@ -32,6 +32,7 @@ export function ExpertSearch() {
   const [expertProfile, setExpertProfile] = useState<any | null>(null);
   const [expertSkills, setExpertSkills] = useState<any[]>([]);
   const [expertReviews, setExpertReviews] = useState<any[]>([]);
+  const [expertHistory, setExpertHistory] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchCatalogs = async () => {
@@ -90,14 +91,16 @@ export function ExpertSearch() {
   const openExpertProfile = async (expert: ExpertResult) => {
     setSelectedExpert(expert);
     try {
-      const [profileRes, skillsRes, reviewsRes] = await Promise.all([
+      const [profileRes, skillsRes, reviewsRes, historyRes] = await Promise.all([
         fetch(`http://localhost:8000/experts/${expert.user_id}`, { credentials: 'include' }),
         fetch(`http://localhost:8000/experts/${expert.user_id}/skills`, { credentials: 'include' }),
         fetch(`http://localhost:8000/reviews/user/${expert.user_id}`, { credentials: 'include' }),
+        fetch(`http://localhost:8000/experts/${expert.user_id}/history`, { credentials: 'include' }),
       ]);
       if (profileRes.ok) setExpertProfile(await profileRes.json());
       if (skillsRes.ok) setExpertSkills(await skillsRes.json());
       if (reviewsRes.ok) setExpertReviews(await reviewsRes.json());
+      if (historyRes.ok) setExpertHistory(await historyRes.json());
     } catch (error) {
       console.error('Failed to fetch expert profile', error);
     }
@@ -233,6 +236,7 @@ export function ExpertSearch() {
             setExpertProfile(null);
             setExpertSkills([]);
             setExpertReviews([]);
+            setExpertHistory([]);
           }
         }}
       >
@@ -268,6 +272,21 @@ export function ExpertSearch() {
                         <span className="text-xs text-slate-400">Отзыв #{review.id}</span>
                       </div>
                       <p>{review.comment || 'Без комментария'}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-medium text-slate-900">История работ</h4>
+                {expertHistory.length === 0 ? (
+                  <p className="text-sm text-slate-500">Нет завершенных работ</p>
+                ) : (
+                  expertHistory.slice(0, 5).map((item: any) => (
+                    <div key={`${item.task_id}-${item.completed_at}`} className="border rounded-lg p-3 text-sm text-slate-700">
+                      <div className="font-medium">{item.task_title}</div>
+                      <div className="text-xs text-slate-400">
+                        {item.price} ₽ · {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : '—'}
+                      </div>
                     </div>
                   ))
                 )}

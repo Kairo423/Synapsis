@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { Progress } from './ui/progress';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -32,6 +31,10 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
   const [isSavingSkills, setIsSavingSkills] = useState(false);
   const [ratingSummary, setRatingSummary] = useState({ average_rating: 0, total_reviews: 0 });
   const [reviews, setReviews] = useState<any[]>([]);
+  const [contracts, setContracts] = useState<any[]>([]);
+  const [taskIndex, setTaskIndex] = useState<Record<number, any>>({});
+  const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
+  const [isLoadingPayments, setIsLoadingPayments] = useState(false);
   const [reviewTarget, setReviewTarget] = useState<{ contractId: number; revieweeId: number; taskTitle: string } | null>(null);
   const [reviewRating, setReviewRating] = useState('5');
   const [reviewComment, setReviewComment] = useState('');
@@ -153,6 +156,13 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
             const tasks = await tasksRes.json();
             const responses = await responsesRes.json();
             const contractsData = contractsRes.ok ? await contractsRes.json() : [];
+            setContracts(contractsData);
+            setTaskIndex(
+              tasks.reduce((acc: Record<number, any>, item: any) => {
+                acc[item.id] = item;
+                return acc;
+              }, {})
+            );
             const taskMap = new Map(tasks.map((item: any) => [item.id, item]));
             const contractByResponse = new Map(
               contractsData
@@ -186,6 +196,7 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
         }
       };
       fetchTasksData();
+      fetchPayments();
     }
   }, [userId]);
 
@@ -270,6 +281,42 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
       }
     } catch (error) {
       console.error('Failed to update description:', error);
+    }
+  };
+
+  const fetchPayments = async () => {
+    setIsLoadingPayments(true);
+    try {
+      const response = await fetch('http://localhost:8000/payments/history', {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPaymentHistory(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch payment history', error);
+    } finally {
+      setIsLoadingPayments(false);
+    }
+  };
+
+  const updateContractStatus = async (contractId: number, status: string) => {
+    try {
+      const response = await fetch(`http://localhost:8000/contracts/${contractId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Не удалось обновить контракт');
+      }
+      const updated = await response.json();
+      setContracts((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (error: any) {
+      alert(error.message || 'Ошибка при обновлении контракта');
     }
   };
 
@@ -666,6 +713,89 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
               })
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>Контракты</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {contracts.length === 0 ? (
+            <p className="text-gray-500 text-center py-4">Контрактов пока нет</p>
+          ) : (
+            <div className="space-y-4">
+              {contracts.map((contract) => {
+                const taskTitle = taskIndex[contract.task_id]?.title || `Задание #${contract.task_id}`;
+                return (
+                  <div key={contract.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-slate-900">{taskTitle}</div>
+                        <div className="text-sm text-gray-600">Статус: {contract.status}</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {contract.status === 'pending' && (
+                          <Button variant="outline" size="sm" onClick={() => updateContractStatus(contract.id, 'active')}>
+                            Принять контракт
+                          </Button>
+                        )}
+                        {contract.status === 'active' && (
+                          <Button variant="outline" size="sm" onClick={() => updateContractStatus(contract.id, 'in_progress')}>
+                            Подтвердить работу
+                          </Button>
+                        )}
+                        {contract.status === 'in_progress' && (
+                          <Button variant="outline" size="sm" onClick={() => updateContractStatus(contract.id, 'review')}>
+                            Отправить на проверку
+                          </Button>
+                        )}
+                        {contract.status === 'review' && (
+                          <span className="text-sm text-amber-600">Ожидает подтверждения</span>
+                        )}
+                        {contract.status === 'completed' && (
+                          <span className="text-sm text-green-600">Завершено</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-400 mt-2">
+                      Стоимость: {contract.agreed_price ?? '—'} ₽ · Заказчик #{contract.customer_id}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>История выплат</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoadingPayments ? (
+            <p className="text-gray-500 text-center py-4">Загрузка...</p>
+          ) : paymentHistory.length === 0 ? (
+            <p className="text-gray-500 text-center py-4">Выплат пока нет</p>
+          ) : (
+            <div className="space-y-3">
+              {paymentHistory.map((item: any) => (
+                <div key={`${item.response_id}-${item.contract_id ?? 'x'}`} className="border rounded-lg p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-medium">{item.task_title}</div>
+                    <div className="text-green-600 font-semibold">
+                      +{item.amount} ₽
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Заказчик: {item.counterparty_name || `#${item.counterparty_id}`} ·{' '}
+                    {item.occurred_at ? new Date(item.occurred_at).toLocaleString() : '—'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

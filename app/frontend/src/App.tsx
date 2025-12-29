@@ -38,6 +38,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [requestedView, setRequestedView] = useState<View | null>(null);
   const [userData, setUserData] = useState<UserData>({
     name: '',
     email: '',
@@ -52,9 +53,23 @@ export default function App() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path.startsWith('/admin')) {
+      setRequestedView('admin');
+      setShowAuth(true);
+      setAuthView('login');
+    } else if (path.startsWith('/dashboard')) {
+      setShowAuth(true);
+      setAuthView('login');
+    }
+  }, []);
+
   // Update URL based on auth state
   useEffect(() => {
-    if (isAuthenticated && (currentView === 'executor' || currentView === 'provider')) {
+    if (isAuthenticated && currentView === 'admin') {
+      window.history.pushState(null, '', '/admin');
+    } else if (isAuthenticated && (currentView === 'executor' || currentView === 'provider')) {
       window.history.pushState(null, '', '/dashboard');
     } else if (!isAuthenticated && !isCheckingAuth) {
       window.history.pushState(null, '', '/');
@@ -97,7 +112,9 @@ export default function App() {
           setUserData(user);
           refreshBalance(); // Fetch specifically from balance endpoint as requested
 
-          if (data.role === 'executor') {
+          if (requestedView === 'admin' && data.role === 'admin') {
+            setCurrentView('admin');
+          } else if (data.role === 'executor') {
             setCurrentView('executor');
           } else if (data.role === 'provider') {
             setCurrentView('provider');
@@ -121,7 +138,9 @@ export default function App() {
       ...data,
       onboardingStatus: 'completed', // Assuming API returns active users
     });
-    if (data.role === 'executor') {
+    if (requestedView === 'admin' && data.role === 'admin') {
+      setCurrentView('admin');
+    } else if (data.role === 'executor') {
       setCurrentView('executor');
     } else if (data.role === 'provider') {
       setCurrentView('provider');
@@ -268,7 +287,13 @@ export default function App() {
   // Show auth screens if not authenticated
   if (!isAuthenticated && showAuth) {
     if (authView === 'login') {
-      return <Login onLogin={handleLogin} onNavigate={setAuthView} />;
+      return (
+        <Login
+          onLogin={handleLogin}
+          onNavigate={setAuthView}
+          mode={requestedView === 'admin' ? 'admin' : 'default'}
+        />
+      );
     }
     if (authView === 'register') {
       return <Register onRegisterSuccess={handleRegisterSuccess} onNavigate={setAuthView} />;
@@ -290,6 +315,11 @@ export default function App() {
                 <span className="text-white">S</span>
               </div>
               <span className="text-xl">Synapsis</span>
+              {userData.role === 'admin' && (
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                  Админ
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {userData.role === 'provider' && (
