@@ -55,7 +55,11 @@ export default function App() {
 
   useEffect(() => {
     const path = window.location.pathname;
-    if (path.startsWith('/admin')) {
+    if (path.startsWith('/admin/register')) {
+      setRequestedView('admin');
+      setShowAuth(true);
+      setAuthView('register');
+    } else if (path.startsWith('/admin')) {
       setRequestedView('admin');
       setShowAuth(true);
       setAuthView('login');
@@ -296,7 +300,13 @@ export default function App() {
       );
     }
     if (authView === 'register') {
-      return <Register onRegisterSuccess={handleRegisterSuccess} onNavigate={setAuthView} />;
+      return (
+        <Register
+          onRegisterSuccess={handleRegisterSuccess}
+          onNavigate={setAuthView}
+          mode={requestedView === 'admin' ? 'admin' : 'default'}
+        />
+      );
     }
     if (authView === 'forgot-password') {
       return <ForgotPassword onNavigate={setAuthView} />;

@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { SubmissionReview } from './SubmissionReview';
 import { ExpertSearch } from './ExpertSearch';
+import { fetchWithRetry } from '../utils/api';
 import { ProjectChat } from './ProjectChat';
 import {
   TrendingUp,
@@ -62,12 +63,16 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
   const [selectedSkillLevel, setSelectedSkillLevel] = useState('3');
   const [taskTypeId, setTaskTypeId] = useState('none');
   const [taskFiles, setTaskFiles] = useState<File[]>([]);
+  const [publishNow, setPublishNow] = useState(true);
 
   const [editingTask, setEditingTask] = useState<any>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [networkError, setNetworkError] = useState('');
+
+  const canTogglePublish = !editingTask || ['draft', 'published', 'new'].includes(editingTask.status);
 
   // My Tasks state
   const [myTasks, setMyTasks] = useState<any[]>([]);
@@ -111,7 +116,7 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
   const fetchReviews = async () => {
     if (!userId) return;
     try {
-      const response = await fetch(`http://localhost:8000/task_responses/provider/${userId}`, {
+      const response = await fetchWithRetry(`http://localhost:8000/task_responses/provider/${userId}`, {
         credentials: 'include',
       });
       if (response.ok) {
@@ -120,13 +125,14 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       }
     } catch (error) {
       console.error('Failed to fetch reviews:', error);
+      setNetworkError('Не удалось загрузить данные. Проверьте соединение.');
     }
   };
 
   const fetchPayments = async () => {
     setIsLoadingPayments(true);
     try {
-      const response = await fetch('http://localhost:8000/payments/history', {
+      const response = await fetchWithRetry('http://localhost:8000/payments/history', {
         credentials: 'include',
       });
       if (response.ok) {
@@ -135,6 +141,7 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       }
     } catch (error) {
       console.error('Failed to fetch payment history:', error);
+      setNetworkError('Не удалось загрузить данные. Проверьте соединение.');
     } finally {
       setIsLoadingPayments(false);
     }
@@ -143,7 +150,7 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
   const fetchContracts = async () => {
     if (!userId) return;
     try {
-      const response = await fetch('http://localhost:8000/contracts', {
+      const response = await fetchWithRetry('http://localhost:8000/contracts', {
         credentials: 'include',
       });
       if (response.ok) {
@@ -152,6 +159,7 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       }
     } catch (error) {
       console.error('Failed to fetch contracts:', error);
+      setNetworkError('Не удалось загрузить данные. Проверьте соединение.');
     }
   };
 
@@ -192,7 +200,7 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
   const fetchMyTasks = async () => {
     setIsLoadingMyTasks(true);
     try {
-      const response = await fetch('http://localhost:8000/tasks/my', {
+      const response = await fetchWithRetry('http://localhost:8000/tasks/my', {
         credentials: 'include',
       });
       if (response.ok) {
@@ -201,8 +209,27 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       }
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
+      setNetworkError('Не удалось загрузить данные. Проверьте соединение.');
     } finally {
       setIsLoadingMyTasks(false);
+    }
+  };
+
+  const handleRetryLoad = () => {
+    setNetworkError('');
+    if (activeTab === 'overview') {
+      fetchMyTasks();
+      fetchReviews();
+      fetchContracts();
+    } else if (activeTab === 'tasks') {
+      fetchMyTasks();
+    } else if (activeTab === 'review') {
+      fetchReviews();
+      fetchContracts();
+    } else if (activeTab === 'contracts') {
+      fetchContracts();
+    } else if (activeTab === 'payments') {
+      fetchPayments();
     }
   };
 
@@ -228,6 +255,7 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
     setEditingTask(task);
     setTitle(task.title);
     setDescription(task.description || '');
+    setPublishNow(task.status !== 'draft');
     // Adjust category/custom category logic
     const knownCategories = ['Медицина', 'Право', 'Лингвистика', 'Финансы'];
     if (knownCategories.includes(task.category)) {
@@ -337,7 +365,7 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       'expert': 'expert'
     };
 
-    const taskPayload = {
+    const taskPayload: any = {
       title,
       description,
       category: category === 'other' ? customCategory : category,
@@ -350,6 +378,9 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       skill_requirements: skillRequirements,
       task_type_id: taskTypeId !== 'none' ? parseInt(taskTypeId, 10) : null,
     };
+    if (canTogglePublish) {
+      taskPayload.status = publishNow ? 'published' : 'draft';
+    }
 
     try {
       const url = editingTask
@@ -393,6 +424,7 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       setTaskTypeId('none');
       setTaskFiles([]);
       setEditingTask(null);
+      setPublishNow(true);
 
       // If was editing, maybe go back to tasks list? Or just stay here with success message.
       // Let's redirect to tasks list after a short delay or immediately if desired.
@@ -402,6 +434,27 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       setError(err.message || 'Произошла ошибка');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const togglePublishStatus = async (task: any, status: string) => {
+    try {
+      const response = await fetch(`http://localhost:8000/tasks/${task.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Не удалось обновить статус');
+      }
+      const updated = await response.json();
+      setMyTasks((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (error: any) {
+      alert(error.message || 'Ошибка при обновлении статуса');
     }
   };
 
@@ -471,6 +524,15 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
         <h1>Дашборд поставщика: {userName}</h1>
         <p className="text-gray-600">Управление проектами и заданиями по разметке данных</p>
       </div>
+
+      {networkError && (
+        <Alert variant="destructive" className="mb-6 flex items-center justify-between gap-4">
+          <AlertDescription>{networkError}</AlertDescription>
+          <Button variant="outline" size="sm" onClick={handleRetryLoad}>
+            Повторить
+          </Button>
+        </Alert>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex w-full max-w-4xl flex-wrap gap-2">
@@ -663,11 +725,15 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                         <div className="flex items-center gap-2">
                           <h4 className="font-medium text-lg truncate">{task.title}</h4>
                           <Badge variant={
-                            task.status === 'new' ? 'secondary' :
+                            task.status === 'draft' ? 'secondary' :
+                              task.status === 'new' ? 'secondary' :
+                                task.status === 'published' ? 'default' :
                               task.status === 'in_progress' ? 'default' :
                                 task.status === 'completed' ? 'success' : 'outline'
                           } className="shrink-0">
+                            {task.status === 'draft' && 'Черновик'}
                             {task.status === 'new' && 'Новое'}
+                            {task.status === 'published' && 'Опубликовано'}
                             {task.status === 'in_progress' && 'В работе'}
                             {task.status === 'completed' && 'Завершено'}
                             {task.status === 'review' && 'На проверке'}
@@ -696,6 +762,20 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                         </div>
                       </div>
                       <div className="flex gap-2 shrink-0">
+                        {['draft', 'published', 'new'].includes(task.status) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              togglePublishStatus(
+                                task,
+                                task.status === 'draft' ? 'published' : 'draft'
+                              )
+                            }
+                          >
+                            {task.status === 'draft' ? 'Опубликовать' : 'Снять с публикации'}
+                          </Button>
+                        )}
                         <Button variant="outline" size="sm" onClick={() => handleEditClick(task)}>
                           <Pencil className="w-4 h-4 mr-2" />
                           Изменить
@@ -966,9 +1046,29 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                   )}
                 </div>
 
+                <div className="flex items-center gap-2">
+                  <input
+                    id="publish-now"
+                    type="checkbox"
+                    checked={publishNow}
+                    onChange={(e) => setPublishNow(e.target.checked)}
+                    disabled={!canTogglePublish}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="publish-now">
+                    {editingTask ? 'Опубликовать задание' : 'Опубликовать сразу'}
+                  </Label>
+                </div>
+
                 <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
                   <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? 'Сохранение...' : (editingTask ? 'Сохранить изменения' : 'Опубликовать задание')}
+                    {isSubmitting
+                      ? 'Сохранение...'
+                      : editingTask
+                      ? 'Сохранить изменения'
+                      : publishNow
+                      ? 'Опубликовать задание'
+                      : 'Сохранить черновик'}
                   </Button>
                 </div>
               </form>

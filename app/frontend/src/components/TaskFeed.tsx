@@ -5,11 +5,13 @@ import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { DollarSign, Clock, Award, Search, FileText, ChevronLeft } from 'lucide-react';
+import { fetchWithRetry } from '../utils/api';
 
 interface Task {
   id: number;
   title: string;
   description: string;
+  status: string;
   reward: number;
   deadline: string;
   category: string;
@@ -95,16 +97,17 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
         if (appliedFilters.taskTypeFilter !== 'all') params.set('task_type_id', appliedFilters.taskTypeFilter);
         if (appliedFilters.minPrice) params.set('min_price', appliedFilters.minPrice);
         if (appliedFilters.maxPrice) params.set('max_price', appliedFilters.maxPrice);
+        params.set('limit', '100');
 
         // Fetch tasks
-        const tasksRes = await fetch(`http://localhost:8000/search/tasks?${params.toString()}`);
+        const tasksRes = await fetchWithRetry(`http://localhost:8000/search/tasks?${params.toString()}`);
         if (!tasksRes.ok) throw new Error('Ошибка при загрузке заданий');
         const tasksData = await tasksRes.json();
 
         // Fetch my responses
         let responsesData: any[] = [];
         try {
-          const responsesRes = await fetch('http://localhost:8000/task_responses/', {
+          const responsesRes = await fetchWithRetry('http://localhost:8000/task_responses/', {
             credentials: 'include',
             cache: 'no-store'
           });
@@ -123,6 +126,7 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
           id: task.id,
           title: task.title,
           description: task.description || '',
+          status: task.status || 'new',
           reward: task.price,
           deadline: task.deadline ? new Date(task.deadline).toLocaleDateString() : 'Не указан',
           category: task.category || 'Общее',
@@ -330,7 +334,9 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
     const response = myResponses.find((r: any) => r.task_id === task.id);
     return response && ['in_progress', 'on_check', 'accepted', 'rejected'].includes(response.status);
   });
-  const availableTasks = visibleTasks.filter(task => !responseTaskIds.has(task.id));
+  const availableTasks = visibleTasks.filter(task =>
+    !responseTaskIds.has(task.id) && ['published', 'new'].includes(task.status)
+  );
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -344,6 +350,20 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
         return 'bg-red-600';
       default:
         return 'bg-gray-600';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'draft': return 'Черновик';
+      case 'published': return 'Опубликовано';
+      case 'new': return 'Новое';
+      case 'in_progress': return 'В работе';
+      case 'review': return 'На проверке';
+      case 'completed': return 'Завершено';
+      case 'cancelled': return 'Отменено';
+      case 'blocked': return 'Заблокировано';
+      default: return status;
     }
   };
 
@@ -777,6 +797,9 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
                           {task.title}
                         </h4>
                         <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-medium whitespace-nowrap">
+                            {getStatusLabel(task.status)}
+                          </Badge>
                           <Badge variant="outline" className="border-slate-200 text-slate-500 font-medium whitespace-nowrap">
                             {task.category}
                           </Badge>

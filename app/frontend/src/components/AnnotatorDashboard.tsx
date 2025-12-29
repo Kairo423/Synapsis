@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from './ui/textarea';
 import { Clock, DollarSign, Star, Pencil, Check } from 'lucide-react';
 import { ProjectChat } from './ProjectChat';
+import { fetchWithRetry } from '../utils/api';
 
 export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userName: string; userId?: number; refreshBalance?: () => void }) {
   const [description, setDescription] = useState('Загрузка...');
@@ -41,6 +42,7 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
   const [reviewedContracts, setReviewedContracts] = useState<number[]>([]);
+  const [networkError, setNetworkError] = useState('');
 
   useEffect(() => {
     if (userId) {
@@ -147,9 +149,9 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
       const fetchTasksData = async () => {
         try {
           const [tasksRes, responsesRes, contractsRes] = await Promise.all([
-            fetch('http://localhost:8000/tasks/'),
-            fetch('http://localhost:8000/task_responses/', { credentials: 'include' }),
-            fetch('http://localhost:8000/contracts', { credentials: 'include' })
+            fetchWithRetry('http://localhost:8000/tasks/'),
+            fetchWithRetry('http://localhost:8000/task_responses/', { credentials: 'include' }),
+            fetchWithRetry('http://localhost:8000/contracts', { credentials: 'include' })
           ]);
 
           if (tasksRes.ok && responsesRes.ok) {
@@ -193,6 +195,7 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
           }
         } catch (e) {
           console.error("Error loading recent tasks", e);
+          setNetworkError('Не удалось загрузить данные. Проверьте соединение.');
         }
       };
       fetchTasksData();
@@ -287,7 +290,7 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
   const fetchPayments = async () => {
     setIsLoadingPayments(true);
     try {
-      const response = await fetch('http://localhost:8000/payments/history', {
+      const response = await fetchWithRetry('http://localhost:8000/payments/history', {
         credentials: 'include',
       });
       if (response.ok) {
@@ -296,6 +299,7 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
       }
     } catch (error) {
       console.error('Failed to fetch payment history', error);
+      setNetworkError('Не удалось загрузить данные. Проверьте соединение.');
     } finally {
       setIsLoadingPayments(false);
     }
@@ -372,6 +376,14 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
 
   return (
     <div className="flex flex-col">
+      {networkError && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between gap-4">
+          <span>{networkError}</span>
+          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+            Повторить
+          </Button>
+        </div>
+      )}
       {/* Profile Header */}
       <Card className="mb-8">
         <CardHeader className="p-6">

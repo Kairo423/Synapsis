@@ -187,6 +187,19 @@ export function Login({ onLogin, onNavigate, mode = 'default' }: LoginProps) {
               </div>
             </div>
           )}
+          {isAdmin && (
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                Нет администратора?{' '}
+                <button
+                  onClick={() => onNavigate('register')}
+                  className="text-blue-600 hover:underline"
+                >
+                  Создать администратора
+                </button>
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

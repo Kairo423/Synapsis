@@ -38,7 +38,7 @@ export function AdminDashboard() {
   const [reportData, setReportData] = useState<any | null>(null);
 
   const statusOptions = useMemo(
-    () => ['new', 'published', 'in_progress', 'review', 'completed', 'cancelled', 'blocked'],
+    () => ['draft', 'new', 'published', 'in_progress', 'review', 'completed', 'cancelled', 'blocked'],
     []
   );
 
@@ -48,15 +48,15 @@ export function AdminDashboard() {
   };
 
   const fetchUsers = async () => {
-    const response = await fetch('http://localhost:8000/admin/users', { credentials: 'include' });
+    const response = await fetch('http://localhost:8000/admin/users?limit=200', { credentials: 'include' });
     if (response.ok) setUsers(await response.json());
   };
 
   const fetchTasks = async () => {
     const url =
       statusFilter === 'all'
-        ? 'http://localhost:8000/admin/tasks'
-        : `http://localhost:8000/admin/tasks?status_filter=${encodeURIComponent(statusFilter)}`;
+        ? 'http://localhost:8000/admin/tasks?limit=200'
+        : `http://localhost:8000/admin/tasks?status_filter=${encodeURIComponent(statusFilter)}&limit=200`;
     const response = await fetch(url, { credentials: 'include' });
     if (response.ok) {
       const data = await response.json();
@@ -72,7 +72,7 @@ export function AdminDashboard() {
   };
 
   const fetchContracts = async () => {
-    const response = await fetch('http://localhost:8000/admin/contracts', { credentials: 'include' });
+    const response = await fetch('http://localhost:8000/admin/contracts?limit=200', { credentials: 'include' });
     if (response.ok) setContracts(await response.json());
   };
 
@@ -254,6 +254,28 @@ export function AdminDashboard() {
     link.download = `synapsis-report-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadReportCsv = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/admin/reports/summary.csv', {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error('Не удалось скачать CSV');
+      }
+      const text = await response.text();
+      const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `synapsis-report-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error(error);
+      alert('Ошибка при скачивании CSV');
+    }
   };
 
   return (
@@ -719,6 +741,9 @@ export function AdminDashboard() {
                 </Button>
                 <Button onClick={downloadReport} disabled={!reportData}>
                   Скачать JSON
+                </Button>
+                <Button variant="outline" onClick={downloadReportCsv}>
+                  Скачать CSV
                 </Button>
               </div>
               {reportData ? (

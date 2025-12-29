@@ -4,8 +4,8 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Star } from 'lucide-react';
+import { fetchWithRetry } from '../utils/api';
 
 interface ExpertResult {
   user_id: number;
@@ -15,6 +15,7 @@ interface ExpertResult {
   rating: number;
   total_reviews: number;
   skill_ids: number[];
+  skills?: Array<{ skill_id: number; level: number }>;
 }
 
 export function ExpertSearch() {
@@ -34,12 +35,20 @@ export function ExpertSearch() {
   const [expertReviews, setExpertReviews] = useState<any[]>([]);
   const [expertHistory, setExpertHistory] = useState<any[]>([]);
 
+  const closeExpertProfile = () => {
+    setSelectedExpert(null);
+    setExpertProfile(null);
+    setExpertSkills([]);
+    setExpertReviews([]);
+    setExpertHistory([]);
+  };
+
   useEffect(() => {
     const fetchCatalogs = async () => {
       try {
         const [domainsRes, skillsRes] = await Promise.all([
-          fetch('http://localhost:8000/catalogs/domains'),
-          fetch('http://localhost:8000/catalogs/skills'),
+          fetchWithRetry('http://localhost:8000/catalogs/domains'),
+          fetchWithRetry('http://localhost:8000/catalogs/skills'),
         ]);
         if (domainsRes.ok) setDomains(await domainsRes.json());
         if (skillsRes.ok) setSkillsCatalog(await skillsRes.json());
@@ -69,8 +78,9 @@ export function ExpertSearch() {
       if (minRate) params.set('min_rate', minRate);
       if (maxRate) params.set('max_rate', maxRate);
       if (minRating) params.set('min_rating', minRating);
+      params.set('limit', '100');
 
-      const response = await fetch(`http://localhost:8000/search/experts?${params.toString()}`, {
+      const response = await fetchWithRetry(`http://localhost:8000/search/experts?${params.toString()}`, {
         credentials: 'include',
       });
       if (response.ok) {
@@ -92,10 +102,10 @@ export function ExpertSearch() {
     setSelectedExpert(expert);
     try {
       const [profileRes, skillsRes, reviewsRes, historyRes] = await Promise.all([
-        fetch(`http://localhost:8000/experts/${expert.user_id}`, { credentials: 'include' }),
-        fetch(`http://localhost:8000/experts/${expert.user_id}/skills`, { credentials: 'include' }),
-        fetch(`http://localhost:8000/reviews/user/${expert.user_id}`, { credentials: 'include' }),
-        fetch(`http://localhost:8000/experts/${expert.user_id}/history`, { credentials: 'include' }),
+        fetchWithRetry(`http://localhost:8000/experts/${expert.user_id}`, { credentials: 'include' }),
+        fetchWithRetry(`http://localhost:8000/experts/${expert.user_id}/skills`, { credentials: 'include' }),
+        fetchWithRetry(`http://localhost:8000/reviews/user/${expert.user_id}`, { credentials: 'include' }),
+        fetchWithRetry(`http://localhost:8000/experts/${expert.user_id}/history`, { credentials: 'include' }),
       ]);
       if (profileRes.ok) setExpertProfile(await profileRes.json());
       if (skillsRes.ok) setExpertSkills(await skillsRes.json());
@@ -105,6 +115,68 @@ export function ExpertSearch() {
       console.error('Failed to fetch expert profile', error);
     }
   };
+
+  if (selectedExpert) {
+    return (
+      <div className="space-y-6">
+        <Button variant="ghost" onClick={closeExpertProfile}>
+          ← Назад к поиску
+        </Button>
+        <Card>
+          <CardHeader>
+            <CardTitle>Профиль эксперта</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <h3 className="font-semibold text-slate-900">{selectedExpert.name}</h3>
+              <p className="text-sm text-slate-500">{getDomainName(selectedExpert.main_domain_id)}</p>
+            </div>
+            {expertProfile?.bio && (
+              <p className="text-sm text-slate-700">{expertProfile.bio}</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {expertSkills.map((item: any) => (
+                <Badge key={`expert-skill-${item.skill_id}`} variant="outline">
+                  {getSkillName(item.skill_id)} · {item.level}
+                </Badge>
+              ))}
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-medium text-slate-900">История работ</h4>
+              {expertHistory.length === 0 ? (
+                <p className="text-sm text-slate-500">Нет завершенных работ</p>
+              ) : (
+                expertHistory.slice(0, 5).map((item: any) => (
+                  <div key={`${item.task_id}-${item.completed_at}`} className="border rounded-lg p-3 text-sm text-slate-700">
+                    <div className="font-medium">{item.task_title}</div>
+                    <div className="text-xs text-slate-400">
+                      {item.price} ₽ · {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : '—'}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-medium text-slate-900">Отзывы</h4>
+              {expertReviews.length === 0 ? (
+                <p className="text-sm text-slate-500">Пока нет отзывов</p>
+              ) : (
+                expertReviews.slice(0, 3).map((review: any) => (
+                  <div key={review.id} className="border rounded-lg p-3 text-sm text-slate-700">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span>Оценка: {review.rating}</span>
+                      <span className="text-xs text-slate-400">Отзыв #{review.id}</span>
+                    </div>
+                    <p>{review.comment || 'Без комментария'}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -208,13 +280,18 @@ export function ExpertSearch() {
                       <span>{expert.rating.toFixed(1)} · {expert.total_reviews} отзывов</span>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {expert.skill_ids.slice(0, 4).map((skillId) => (
-                        <Badge key={`${expert.user_id}-${skillId}`} variant="secondary">
-                          {getSkillName(skillId)}
+                      {(expert.skills && expert.skills.length > 0
+                        ? expert.skills
+                        : expert.skill_ids.map((skillId) => ({ skill_id: skillId, level: null }))
+                      ).slice(0, 4).map((skill) => (
+                        <Badge key={`${expert.user_id}-${skill.skill_id}`} variant="secondary">
+                          {getSkillName(skill.skill_id)}{skill.level ? ` · ${skill.level}` : ''}
                         </Badge>
                       ))}
-                      {expert.skill_ids.length > 4 && (
-                        <Badge variant="secondary">+{expert.skill_ids.length - 4}</Badge>
+                      {((expert.skills && expert.skills.length) || expert.skill_ids.length) > 4 && (
+                        <Badge variant="secondary">
+                          +{((expert.skills && expert.skills.length) || expert.skill_ids.length) - 4}
+                        </Badge>
                       )}
                     </div>
                     <Button variant="outline" onClick={() => openExpertProfile(expert)}>
@@ -227,74 +304,6 @@ export function ExpertSearch() {
           )}
         </CardContent>
       </Card>
-
-      <Dialog
-        open={Boolean(selectedExpert)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedExpert(null);
-            setExpertProfile(null);
-            setExpertSkills([]);
-            setExpertReviews([]);
-            setExpertHistory([]);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-[560px]">
-          <DialogHeader>
-            <DialogTitle>Профиль эксперта</DialogTitle>
-          </DialogHeader>
-          {selectedExpert && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-semibold text-slate-900">{selectedExpert.name}</h3>
-                <p className="text-sm text-slate-500">{getDomainName(selectedExpert.main_domain_id)}</p>
-              </div>
-              {expertProfile?.bio && (
-                <p className="text-sm text-slate-700">{expertProfile.bio}</p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {expertSkills.map((item: any) => (
-                  <Badge key={`expert-skill-${item.skill_id}`} variant="outline">
-                    {getSkillName(item.skill_id)} · {item.level}
-                  </Badge>
-                ))}
-              </div>
-              <div className="space-y-2">
-                <h4 className="font-medium text-slate-900">Отзывы</h4>
-                {expertReviews.length === 0 ? (
-                  <p className="text-sm text-slate-500">Пока нет отзывов</p>
-                ) : (
-                  expertReviews.slice(0, 3).map((review: any) => (
-                    <div key={review.id} className="border rounded-lg p-3 text-sm text-slate-700">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span>Оценка: {review.rating}</span>
-                        <span className="text-xs text-slate-400">Отзыв #{review.id}</span>
-                      </div>
-                      <p>{review.comment || 'Без комментария'}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="space-y-2">
-                <h4 className="font-medium text-slate-900">История работ</h4>
-                {expertHistory.length === 0 ? (
-                  <p className="text-sm text-slate-500">Нет завершенных работ</p>
-                ) : (
-                  expertHistory.slice(0, 5).map((item: any) => (
-                    <div key={`${item.task_id}-${item.completed_at}`} className="border rounded-lg p-3 text-sm text-slate-700">
-                      <div className="font-medium">{item.task_title}</div>
-                      <div className="text-xs text-slate-400">
-                        {item.price} ₽ · {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : '—'}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

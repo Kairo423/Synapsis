@@ -10,11 +10,13 @@ import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 interface RegisterProps {
   onRegisterSuccess: () => void;
   onNavigate: (view: 'login') => void;
+  mode?: 'default' | 'admin';
 }
 
-export function Register({ onRegisterSuccess, onNavigate }: RegisterProps) {
-  const [step, setStep] = useState(1);
-  const [role, setRole] = useState<'executor' | 'provider'>('executor');
+export function Register({ onRegisterSuccess, onNavigate, mode = 'default' }: RegisterProps) {
+  const isAdmin = mode === 'admin';
+  const [step, setStep] = useState(isAdmin ? 2 : 1);
+  const [role, setRole] = useState<'executor' | 'provider' | 'admin'>(isAdmin ? 'admin' : 'executor');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -79,16 +81,18 @@ export function Register({ onRegisterSuccess, onNavigate }: RegisterProps) {
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
             <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white text-xl">S</span>
+              <span className="text-white text-xl">{isAdmin ? 'A' : 'S'}</span>
             </div>
           </div>
-          <CardTitle className="text-2xl text-center">Регистрация</CardTitle>
+          <CardTitle className="text-2xl text-center">
+            {isAdmin ? 'Регистрация администратора' : 'Регистрация'}
+          </CardTitle>
           <CardDescription className="text-center">
-            {step === 1 ? 'Выберите тип аккаунта' : 'Заполните данные для регистрации'}
+            {isAdmin ? 'Создание учетной записи администратора' : step === 1 ? 'Выберите тип аккаунта' : 'Заполните данные для регистрации'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {step === 1 ? (
+          {!isAdmin && step === 1 ? (
             <div className="space-y-6">
               <RadioGroup value={role} onValueChange={(value: string) => setRole(value as 'executor' | 'provider')}>
                 <div
