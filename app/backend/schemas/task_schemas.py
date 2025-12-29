@@ -39,6 +39,7 @@ class TaskBase(BaseModel):
     file_link: Optional[str] = None
 
 class TaskCreate(TaskBase):
+    status: Optional[str] = None
     domain_ids: Optional[List[int]] = None
     skill_requirements: Optional[List[TaskSkillRequirementInput]] = None
     task_type_id: Optional[int] = None

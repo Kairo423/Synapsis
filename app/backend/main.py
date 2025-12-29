@@ -1,6 +1,10 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+import logging
+import time
 from endpoints.user_endpoints import router as users_router, auth_router
 from endpoints.task_endpoints import router as tasks_router
 from endpoints.task_response_endpoints import router as task_responses_router
@@ -30,6 +34,27 @@ app = FastAPI(
     version="1.0.0",
     swagger_ui_parameters={"defaultModelsExpandDepth": -1},  # Убираем секцию Model из Swagger UI
 )
+
+LOG_FILE = Path(__file__).resolve().parent.parent / "logs.txt"
+logger = logging.getLogger("synapsis")
+if not logger.handlers:
+    handler = RotatingFileHandler(LOG_FILE, maxBytes=1_000_000, backupCount=3)
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    handler.setFormatter(formatter)
+    logger.setLevel(logging.INFO)
+    logger.addHandler(handler)
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception("Unhandled error path=%s", request.url.path)
+        raise
+    duration_ms = (time.perf_counter() - start) * 1000
+    logger.info("%s %s %s %.2fms", request.method, request.url.path, response.status_code, duration_ms)
+    return response
 
 # CORS
 app.add_middleware(

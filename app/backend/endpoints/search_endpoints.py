@@ -27,6 +27,17 @@ def parse_int_list(raw: Optional[str]) -> List[int]:
         values.append(int(part))
     return values
 
+def parse_str_list(raw: Optional[str]) -> List[str]:
+    if not raw:
+        return []
+    values = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part or part.lower() == "all":
+            continue
+        values.append(part)
+    return values
+
 @router.get("/tasks", response_model=List[TaskResponse])
 async def search_tasks(
     q: Optional[str] = None,
@@ -38,6 +49,8 @@ async def search_tasks(
     status: Optional[str] = None,
     category: Optional[str] = None,
     difficulty: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db)
 ):
     query = db.query(Task)
@@ -49,7 +62,9 @@ async def search_tasks(
     if max_price is not None:
         query = query.filter(Task.price <= max_price)
     if status:
-        query = query.filter(Task.status == status)
+        statuses = parse_str_list(status)
+        if statuses:
+            query = query.filter(Task.status.in_(statuses))
     if category:
         query = query.filter(Task.category == category)
     if difficulty:
@@ -66,7 +81,7 @@ async def search_tasks(
     if task_type_id is not None:
         query = query.join(TaskTypeAssignment).filter(TaskTypeAssignment.task_type_id == task_type_id)
 
-    return query.distinct().all()
+    return query.distinct().offset(skip).limit(limit).all()
 
 @router.get("/experts", response_model=List[ExpertSearchResult])
 async def search_experts(
@@ -76,6 +91,8 @@ async def search_experts(
     min_rate: Optional[float] = None,
     max_rate: Optional[float] = None,
     min_rating: Optional[float] = None,
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -115,15 +132,19 @@ async def search_experts(
         query = query.join(ExpertSkill, ExpertSkill.user_id == User.id
         ).filter(ExpertSkill.skill_id.in_(skill_list))
 
-    results = query.distinct().all()
+    results = query.distinct().offset(skip).limit(limit).all()
     user_ids = [row.user_id for row in results]
 
-    skills_map: dict[int, list[int]] = {}
+    skills_map: dict[int, list[tuple[int, int]]] = {}
     if user_ids:
-        for user_id, skill_id in db.query(ExpertSkill.user_id, ExpertSkill.skill_id).filter(
+        for user_id, skill_id, level in db.query(
+            ExpertSkill.user_id,
+            ExpertSkill.skill_id,
+            ExpertSkill.level
+        ).filter(
             ExpertSkill.user_id.in_(user_ids)
         ).all():
-            skills_map.setdefault(user_id, []).append(skill_id)
+            skills_map.setdefault(user_id, []).append((skill_id, level))
 
     return [
         ExpertSearchResult(
@@ -133,8 +154,8 @@ async def search_experts(
             rate=row.rate,
             rating=float(row.rating or 0.0),
             total_reviews=int(row.total_reviews or 0),
-            skill_ids=skills_map.get(row.user_id, [])
+            skill_ids=[item[0] for item in skills_map.get(row.user_id, [])],
+            skills=[{"skill_id": item[0], "level": item[1]} for item in skills_map.get(row.user_id, [])]
         )
         for row in results
     ]
-

@@ -9,6 +9,8 @@ from typing import List
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
+VALID_TASK_STATUSES = {"new", "draft", "published", "in_progress", "review", "completed", "cancelled", "blocked"}
+
 def apply_task_requirements(
     task: Task,
     domain_ids,
@@ -59,10 +61,13 @@ async def create_task(task_data: TaskCreate, current_user = Depends(get_current_
             detail="Только заказчики могут создавать задачи"
         )
     
+    if task_data.status and task_data.status not in VALID_TASK_STATUSES:
+        raise HTTPException(status_code=400, detail="Недопустимый статус задания")
+
     task = Task(
         **task_data.dict(exclude={"domain_ids", "skill_requirements", "task_type_id"}),
         customer_id=current_user.id,
-        status="new"
+        status=task_data.status or "new"
     )
     
     db.add(task)
@@ -137,6 +142,8 @@ async def update_task(
         )
     
     update_data = task_update.dict(exclude_unset=True, exclude={"domain_ids", "skill_requirements", "task_type_id"})
+    if "status" in update_data and update_data["status"] not in VALID_TASK_STATUSES:
+        raise HTTPException(status_code=400, detail="Недопустимый статус задания")
     for key, value in update_data.items():
         setattr(task, key, value)
 

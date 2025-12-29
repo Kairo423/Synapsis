@@ -68,7 +68,7 @@ async def create_contract(
         task_response_id=response.id if response else None,
         customer_id=task.customer_id,
         performer_id=performer_id,
-        status=payload.status or "active",
+        status=payload.status or "pending",
         agreed_price=payload.agreed_price if payload.agreed_price is not None else task.price
     )
     db.add(contract)

@@ -1,7 +1,11 @@
 from datetime import datetime, timezone
+import csv
+import io
+import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session, aliased
 
@@ -21,6 +25,7 @@ from schemas.contract_schemas import ContractRead
 from schemas.user_schemas import UserResponse
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+logger = logging.getLogger("synapsis.audit")
 
 
 def require_admin(current_user: User):
@@ -54,6 +59,8 @@ def serialize_task(task: Task, customer: User, performer: Optional[User]) -> Adm
 async def list_users(
     role: Optional[str] = None,
     is_active: Optional[bool] = None,
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -63,7 +70,7 @@ async def list_users(
         query = query.filter(User.role == role)
     if is_active is not None:
         query = query.filter(User.is_active == is_active)
-    return query.all()
+    return query.offset(skip).limit(limit).all()
 
 
 @router.patch("/users/{user_id}/status", response_model=UserResponse)
@@ -82,12 +89,15 @@ async def update_user_status(
     user.is_active = payload.is_active
     db.commit()
     db.refresh(user)
+    logger.info("admin_user_status user_id=%s target_id=%s is_active=%s", current_user.id, user.id, user.is_active)
     return user
 
 
 @router.get("/tasks", response_model=List[AdminTaskRead])
 async def list_tasks(
     status_filter: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -101,7 +111,7 @@ async def list_tasks(
     )
     if status_filter:
         query = query.filter(Task.status == status_filter)
-    rows = query.order_by(Task.created_at.desc()).all()
+    rows = query.order_by(Task.created_at.desc()).offset(skip).limit(limit).all()
     return [serialize_task(task, customer_row, performer_row) for task, customer_row, performer_row in rows]
 
 
@@ -119,6 +129,7 @@ async def update_task_status(
     task.status = payload.status
     db.commit()
     db.refresh(task)
+    logger.info("admin_task_status user_id=%s task_id=%s status=%s", current_user.id, task.id, task.status)
 
     customer = db.query(User).filter(User.id == task.customer_id).first()
     performer = db.query(User).filter(User.id == task.performer_id).first() if task.performer_id else None
@@ -128,6 +139,8 @@ async def update_task_status(
 @router.get("/contracts", response_model=List[ContractRead])
 async def list_contracts(
     status_filter: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -135,7 +148,7 @@ async def list_contracts(
     query = db.query(Contract)
     if status_filter:
         query = query.filter(Contract.status == status_filter)
-    return query.order_by(Contract.created_at.desc()).all()
+    return query.order_by(Contract.created_at.desc()).offset(skip).limit(limit).all()
 
 
 @router.get("/stats", response_model=AdminStats)
@@ -206,3 +219,29 @@ async def get_admin_report_summary(
         recent_tasks=recent_tasks,
         recent_contracts=recent_contracts,
     )
+
+
+@router.get("/reports/summary.csv", response_class=PlainTextResponse)
+async def get_admin_report_summary_csv(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    require_admin(current_user)
+    stats = await get_admin_stats(db=db, current_user=current_user)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["section", "key", "value"])
+    writer.writerow(["users", "total", stats.users_total])
+    writer.writerow(["users", "active", stats.users_active])
+    writer.writerow(["users", "blocked", stats.users_blocked])
+    for role, count in stats.users_by_role.items():
+        writer.writerow(["users_by_role", role, count])
+    writer.writerow(["tasks", "total", stats.tasks_total])
+    for status, count in stats.tasks_by_status.items():
+        writer.writerow(["tasks_by_status", status, count])
+    writer.writerow(["contracts", "total", stats.contracts_total])
+    for status, count in stats.contracts_by_status.items():
+        writer.writerow(["contracts_by_status", status, count])
+    writer.writerow(["responses", "total", stats.task_responses_total])
+    writer.writerow(["payments", "total", stats.payments_total])
+    return output.getvalue()
