@@ -26,3 +26,4 @@ app/frontend/package-lock.json
 
 # Игнорирование log файла
 logs.txt
+.DS_Store
