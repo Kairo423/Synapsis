@@ -7,9 +7,11 @@ from auth import get_current_user
 from models.user_models import User
 from models.profile_models import ExpertProfile, ExpertSkill
 from models.catalog_models import Domain, Skill
+from models.task_models import Task, TaskResponse
+from models.contract_models import Contract
 from schemas.profile_schemas import (
     ExpertProfileRead, ExpertProfileUpdate,
-    ExpertSkillRead, ExpertSkillReplace
+    ExpertSkillRead, ExpertSkillReplace, ExpertWorkHistoryRead
 )
 
 router = APIRouter(prefix="/experts", tags=["experts"])
@@ -95,3 +97,37 @@ async def get_expert_skills(
 ):
     return db.query(ExpertSkill).filter(ExpertSkill.user_id == user_id).all()
 
+
+@router.get("/{user_id}/history", response_model=List[ExpertWorkHistoryRead])
+async def get_expert_history(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    expert = db.query(User).filter(User.id == user_id, User.role == "executor").first()
+    if not expert:
+        raise HTTPException(status_code=404, detail="Эксперт не найден")
+
+    rows = db.query(TaskResponse, Task, Contract, User).join(
+        Task, Task.id == TaskResponse.task_id
+    ).outerjoin(
+        Contract, Contract.task_response_id == TaskResponse.id
+    ).join(
+        User, Task.customer_id == User.id
+    ).filter(
+        TaskResponse.performer_id == user_id,
+        TaskResponse.status == "accepted"
+    ).order_by(TaskResponse.submitted_at.desc()).all()
+
+    history: List[ExpertWorkHistoryRead] = []
+    for response, task, contract, customer in rows:
+        completed_at = contract.created_at if contract else response.submitted_at
+        history.append(ExpertWorkHistoryRead(
+            task_id=task.id,
+            task_title=task.title,
+            price=task.price,
+            customer_id=customer.id,
+            customer_name=customer.name,
+            completed_at=completed_at
+        ))
+    return history

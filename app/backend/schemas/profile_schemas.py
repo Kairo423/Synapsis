@@ -35,3 +35,12 @@ class ExpertSkillRead(BaseModel):
 
 class ExpertSkillReplace(BaseModel):
     skills: List[ExpertSkillInput] = Field(default_factory=list)
+
+
+class ExpertWorkHistoryRead(BaseModel):
+    task_id: int
+    task_title: str
+    price: float
+    customer_id: int
+    customer_name: Optional[str] = None
+    completed_at: Optional[datetime] = None

@@ -12,6 +12,7 @@ from endpoints.file_endpoints import router as files_router
 from endpoints.search_endpoints import router as search_router
 from endpoints.chat_endpoints import router as chat_router
 from endpoints.admin_endpoints import router as admin_router
+from endpoints.payments_endpoints import router as payments_router
 from auth import get_current_user
 from database import engine, Base, get_db
 from models.task_models import Task, TaskResponse
@@ -57,6 +58,7 @@ app.include_router(files_router)
 app.include_router(search_router)
 app.include_router(chat_router)
 app.include_router(admin_router)
+app.include_router(payments_router)
 
 
 @app.on_event("startup")
