@@ -54,6 +54,11 @@ async def login(login_data: UserLogin, response: Response, db: Session = Depends
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неправильный пароль"
         )
+    if user.is_active is False:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Пользователь заблокирован"
+        )
 
     token = security.create_access_token(uid=str(user.id))
     refresh_token = security.create_refresh_token(uid=str(user.id))

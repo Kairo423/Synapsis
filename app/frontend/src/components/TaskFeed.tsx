@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { DollarSign, Clock, Award, Search, Filter, FileText, ChevronLeft } from 'lucide-react';
+import { DollarSign, Clock, Award, Search, FileText, ChevronLeft } from 'lucide-react';
 
 interface Task {
   id: number;
@@ -19,6 +19,9 @@ interface Task {
   clientRating: number;
   available: number;
   file_link?: string;
+  domain_requirements?: Array<{ domain_id: number }>;
+  skill_requirements?: Array<{ skill_id: number; min_level?: number }>;
+  type_assignment?: { task_type_id: number } | null;
 }
 
 interface TaskFeedProps {
@@ -33,21 +36,68 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [difficultyFilter, setDifficultyFilter] = useState('all');
+  const [domainFilter, setDomainFilter] = useState('all');
+  const [skillFilter, setSkillFilter] = useState('all');
+  const [taskTypeFilter, setTaskTypeFilter] = useState('all');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState({
+    searchQuery: '',
+    categoryFilter: 'all',
+    difficultyFilter: 'all',
+    domainFilter: 'all',
+    skillFilter: 'all',
+    taskTypeFilter: 'all',
+    minPrice: '',
+    maxPrice: '',
+  });
+  const [domains, setDomains] = useState<any[]>([]);
+  const [skillsCatalog, setSkillsCatalog] = useState<any[]>([]);
+  const [taskTypes, setTaskTypes] = useState<any[]>([]);
 
   const [selectedTaskForModal, setSelectedTaskForModal] = useState<Task | null>(null);
   const [isTakingTask, setIsTakingTask] = useState(false);
   const [taskResponse, setTaskResponse] = useState<any | null>(null);
   const [comment, setComment] = useState('');
   const [resultLink, setResultLink] = useState('');
+  const [resultFile, setResultFile] = useState<File | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCatalogs = async () => {
+      try {
+        const [domainsRes, skillsRes, typesRes] = await Promise.all([
+          fetch('http://localhost:8000/catalogs/domains'),
+          fetch('http://localhost:8000/catalogs/skills'),
+          fetch('http://localhost:8000/catalogs/task-types'),
+        ]);
+        if (domainsRes.ok) setDomains(await domainsRes.json());
+        if (skillsRes.ok) setSkillsCatalog(await skillsRes.json());
+        if (typesRes.ok) setTaskTypes(await typesRes.json());
+      } catch (err) {
+        console.error('Failed to fetch catalogs', err);
+      }
+    };
+    fetchCatalogs();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
 
+        const params = new URLSearchParams();
+        if (appliedFilters.searchQuery) params.set('q', appliedFilters.searchQuery);
+        if (appliedFilters.categoryFilter !== 'all') params.set('category', appliedFilters.categoryFilter);
+        if (appliedFilters.difficultyFilter !== 'all') params.set('difficulty', appliedFilters.difficultyFilter);
+        if (appliedFilters.domainFilter !== 'all') params.set('domain_ids', appliedFilters.domainFilter);
+        if (appliedFilters.skillFilter !== 'all') params.set('skill_ids', appliedFilters.skillFilter);
+        if (appliedFilters.taskTypeFilter !== 'all') params.set('task_type_id', appliedFilters.taskTypeFilter);
+        if (appliedFilters.minPrice) params.set('min_price', appliedFilters.minPrice);
+        if (appliedFilters.maxPrice) params.set('max_price', appliedFilters.maxPrice);
+
         // Fetch tasks
-        const tasksRes = await fetch('http://localhost:8000/tasks/');
+        const tasksRes = await fetch(`http://localhost:8000/search/tasks?${params.toString()}`);
         if (!tasksRes.ok) throw new Error('Ошибка при загрузке заданий');
         const tasksData = await tasksRes.json();
 
@@ -82,6 +132,9 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
           clientRating: 4.5, // Mocked as it's not in the backend yet
           available: task.repeats || 1,
           file_link: task.file_link,
+          domain_requirements: task.domain_requirements || [],
+          skill_requirements: task.skill_requirements || [],
+          type_assignment: task.type_assignment || null,
         }));
 
         setTasks(mappedTasks);
@@ -95,7 +148,41 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
     };
 
     fetchData();
-  }, []);
+  }, [appliedFilters]);
+
+  const handleApplyFilters = () => {
+    setAppliedFilters({
+      searchQuery,
+      categoryFilter,
+      difficultyFilter,
+      domainFilter,
+      skillFilter,
+      taskTypeFilter,
+      minPrice,
+      maxPrice,
+    });
+  };
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setCategoryFilter('all');
+    setDifficultyFilter('all');
+    setDomainFilter('all');
+    setSkillFilter('all');
+    setTaskTypeFilter('all');
+    setMinPrice('');
+    setMaxPrice('');
+    setAppliedFilters({
+      searchQuery: '',
+      categoryFilter: 'all',
+      difficultyFilter: 'all',
+      domainFilter: 'all',
+      skillFilter: 'all',
+      taskTypeFilter: 'all',
+      minPrice: '',
+      maxPrice: '',
+    });
+  };
 
   const mapDifficulty = (difficulty: string | null) => {
     switch (difficulty) {
@@ -106,6 +193,18 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
       case 'expert': return 'Эксперт';
       default: return difficulty || 'Начальный';
     }
+  };
+
+  const getDomainName = (domainId: number) => {
+    return domains.find((domain) => domain.id === domainId)?.name || `Область #${domainId}`;
+  };
+
+  const getSkillName = (skillId: number) => {
+    return skillsCatalog.find((skill) => skill.id === skillId)?.name || `Навык #${skillId}`;
+  };
+
+  const getTaskTypeName = (taskTypeId: number) => {
+    return taskTypes.find((type) => type.id === taskTypeId)?.name || `Тип #${taskTypeId}`;
   };
 
   const handleTakeTask = async (task: Task) => {
@@ -153,6 +252,7 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
       setTaskResponse(null);
       setComment('');
       setResultLink('');
+      setResultFile(null);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -163,18 +263,35 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
   const handleSubmitResponse = async () => {
     if (!taskResponse) return;
 
-    if (!comment.trim() || !resultLink.trim()) {
-      alert('Пожалуйста, заполните комментарий и ссылку на результат перед отправкой.');
+    if (!comment.trim() || (!resultLink.trim() && !resultFile)) {
+      alert('Пожалуйста, заполните комментарий и добавьте ссылку или файл результата.');
       return;
     }
 
     try {
+      let attachmentUrl = resultLink.trim();
+      if (resultFile) {
+        const formData = new FormData();
+        formData.append('upload_file', resultFile);
+        const uploadRes = await fetch(`http://localhost:8000/files/responses/${taskResponse.id}/deliverables`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json();
+          throw new Error(errData.detail || 'Не удалось загрузить файл');
+        }
+        const deliverable = await uploadRes.json();
+        attachmentUrl = `http://localhost:8000/files/deliverables/${deliverable.id}/download`;
+      }
+
       const response = await fetch(`http://localhost:8000/task_responses/${taskResponse.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           comment: comment,
-          attachment_url: resultLink
+          attachment_url: attachmentUrl
         }),
         credentials: 'include',
       });
@@ -193,6 +310,7 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
         setTaskResponse(null);
         setComment('');
         setResultLink('');
+        setResultFile(null);
         // Optionally trigger a refresh of tasks here
         window.location.reload(); // Simple way to refresh lists
       }, 2000);
@@ -205,21 +323,14 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
   // Filter tasks logic
   const responseTaskIds = new Set(myResponses.map((r: any) => r.task_id));
 
-  // Apply search and category filters first
-  const allFiltered = tasks.filter((task) => {
-    const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || task.category === categoryFilter;
-    const matchesDifficulty = difficultyFilter === 'all' || task.difficulty === difficultyFilter;
+  // Backend already applies filters; keep client-side list as-is
+  const visibleTasks = tasks;
 
-    return matchesSearch && matchesCategory && matchesDifficulty;
-  });
-
-  const activeTasks = allFiltered.filter(task => {
+  const activeTasks = visibleTasks.filter(task => {
     const response = myResponses.find((r: any) => r.task_id === task.id);
     return response && ['in_progress', 'on_check', 'accepted', 'rejected'].includes(response.status);
   });
-  const availableTasks = allFiltered.filter(task => !responseTaskIds.has(task.id));
+  const availableTasks = visibleTasks.filter(task => !responseTaskIds.has(task.id));
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -249,6 +360,7 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
               setTaskResponse(null);
               setComment('');
               setResultLink('');
+              setResultFile(null);
             }}
           >
             <ChevronLeft className="w-4 h-4" />
@@ -304,6 +416,24 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
                 >
                   {selectedTaskForModal.description}
                 </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mb-8">
+                {selectedTaskForModal.type_assignment?.task_type_id && (
+                  <Badge variant="outline" className="bg-white border-slate-200 text-slate-700">
+                    {getTaskTypeName(selectedTaskForModal.type_assignment.task_type_id)}
+                  </Badge>
+                )}
+                {selectedTaskForModal.domain_requirements?.map((item) => (
+                  <Badge key={`domain-${item.domain_id}`} variant="outline" className="bg-white border-slate-200 text-slate-700">
+                    {getDomainName(item.domain_id)}
+                  </Badge>
+                ))}
+                {selectedTaskForModal.skill_requirements?.map((item) => (
+                  <Badge key={`skill-${item.skill_id}`} variant="outline" className="bg-white border-slate-200 text-slate-700">
+                    {getSkillName(item.skill_id)}{item.min_level ? ` · ${item.min_level}+` : ''}
+                  </Badge>
+                ))}
               </div>
 
               <div style={{ marginBottom: '32px' }}>
@@ -378,6 +508,19 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
                     />
                   </div>
 
+                  <div className="space-y-4">
+                    <label className="text-lg font-bold text-slate-900">Файл результата (PDF/JPG/PNG/ZIP)</label>
+                    <Input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.zip"
+                      className="h-14 px-4 bg-slate-50 border-slate-200 rounded-xl text-slate-900"
+                      onChange={(e) => setResultFile(e.target.files ? e.target.files[0] : null)}
+                    />
+                    {resultFile && (
+                      <div className="text-sm text-slate-500">Выбран файл: {resultFile.name}</div>
+                    )}
+                  </div>
+
                   <div className="pt-4">
                     {successMessage ? (
                       <div className="w-full h-14 bg-green-50 text-green-700 border border-green-200 font-bold text-lg rounded-xl flex items-center justify-center animate-in fade-in zoom-in duration-300">
@@ -405,7 +548,7 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
           <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden gap-0 mb-12">
 
             <CardContent className="p-6">
-              <div className="grid md:grid-cols-3 gap-6">
+              <div className="grid md:grid-cols-4 gap-6">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
@@ -441,6 +584,77 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
                     <SelectItem value="Эксперт">Эксперт</SelectItem>
                   </SelectContent>
                 </Select>
+
+                <Select value={taskTypeFilter} onValueChange={setTaskTypeFilter}>
+                  <SelectTrigger className="h-10 border-slate-200 rounded-lg bg-white">
+                    <SelectValue placeholder="Тип задания" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все типы</SelectItem>
+                    {taskTypes.map((type) => (
+                      <SelectItem key={type.id} value={String(type.id)}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid md:grid-cols-4 gap-6 mt-4">
+                <Select value={domainFilter} onValueChange={setDomainFilter}>
+                  <SelectTrigger className="h-10 border-slate-200 rounded-lg bg-white">
+                    <SelectValue placeholder="Область" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Любая область</SelectItem>
+                    {domains.map((domain) => (
+                      <SelectItem key={domain.id} value={String(domain.id)}>
+                        {domain.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={skillFilter} onValueChange={setSkillFilter}>
+                  <SelectTrigger className="h-10 border-slate-200 rounded-lg bg-white">
+                    <SelectValue placeholder="Навык" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Любой навык</SelectItem>
+                    {skillsCatalog.map((skill) => (
+                      <SelectItem key={skill.id} value={String(skill.id)}>
+                        {skill.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Input
+                  placeholder="Мин. бюджет"
+                  value={minPrice}
+                  onChange={(e) => setMinPrice(e.target.value)}
+                  className="h-10 border-slate-200 rounded-lg"
+                  type="number"
+                  min="0"
+                />
+
+                <Input
+                  placeholder="Макс. бюджет"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(e.target.value)}
+                  className="h-10 border-slate-200 rounded-lg"
+                  type="number"
+                  min="0"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 mt-4">
+                <Button variant="outline" onClick={handleResetFilters}>
+                  Сбросить
+                </Button>
+                <Button onClick={handleApplyFilters}>
+                  Применить
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -469,6 +683,7 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
                       className="hover:border-blue-300 transition-colors cursor-pointer rounded-xl border-blue-100 bg-blue-50/30 group"
                       onClick={() => {
                         setSelectedTaskForModal(task);
+                        setResultFile(null);
                         const response = myResponses.find((r: any) => r.task_id === task.id);
                         if (response) {
                           setTaskResponse(response);
@@ -547,7 +762,13 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
                 <Card
                   key={task.id}
                   className="hover:border-slate-300 transition-colors cursor-pointer rounded-xl border-slate-200 group"
-                  onClick={() => setSelectedTaskForModal(task)}
+                  onClick={() => {
+                    setSelectedTaskForModal(task);
+                    setTaskResponse(null);
+                    setComment('');
+                    setResultLink('');
+                    setResultFile(null);
+                  }}
                 >
                   <CardContent className="p-6 space-y-6">
                     <div className="flex items-center justify-between gap-4">
@@ -572,6 +793,26 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
                         ? task.description.substring(0, 60) + '...'
                         : task.description}
                     </p>
+
+                    {(task.type_assignment || (task.domain_requirements && task.domain_requirements.length > 0) || (task.skill_requirements && task.skill_requirements.length > 0)) && (
+                      <div className="flex flex-wrap gap-2">
+                        {task.type_assignment?.task_type_id && (
+                          <Badge variant="outline" className="border-slate-200 text-slate-500 font-medium">
+                            {getTaskTypeName(task.type_assignment.task_type_id)}
+                          </Badge>
+                        )}
+                        {task.domain_requirements?.map((item) => (
+                          <Badge key={`domain-${task.id}-${item.domain_id}`} variant="outline" className="border-slate-200 text-slate-500 font-medium">
+                            {getDomainName(item.domain_id)}
+                          </Badge>
+                        ))}
+                        {task.skill_requirements?.map((item) => (
+                          <Badge key={`skill-${task.id}-${item.skill_id}`} variant="outline" className="border-slate-200 text-slate-500 font-medium">
+                            {getSkillName(item.skill_id)}{item.min_level ? ` · ${item.min_level}+` : ''}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="flex gap-12 pt-6 border-t border-slate-50">
                       <div className="flex items-center gap-3">

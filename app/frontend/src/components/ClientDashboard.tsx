@@ -10,16 +10,14 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription } from './ui/alert';
 import { SubmissionReview } from './SubmissionReview';
+import { ExpertSearch } from './ExpertSearch';
+import { ProjectChat } from './ProjectChat';
 import {
   TrendingUp,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  Upload,
   Plus,
-  DollarSign,
   Users,
-  BarChart3,
   Eye,
   Check,
   X,
@@ -32,6 +30,10 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
   const [reviews, setReviews] = useState<any[]>([]);
   const [submissionStatuses, setSubmissionStatuses] = useState<Record<number, 'pending' | 'accepted' | 'rejected' | 'on_check' | 'submitted'>>({});
+  const [contracts, setContracts] = useState<any[]>([]);
+  const [domains, setDomains] = useState<any[]>([]);
+  const [skillsCatalog, setSkillsCatalog] = useState<any[]>([]);
+  const [taskTypes, setTaskTypes] = useState<any[]>([]);
 
   // Task creation state
   const [title, setTitle] = useState('');
@@ -43,6 +45,12 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
   const [deadline, setDeadline] = useState('');
   const [repeats, setRepeats] = useState('1');
   const [fileLink, setFileLink] = useState('');
+  const [selectedDomainIds, setSelectedDomainIds] = useState<number[]>([]);
+  const [skillRequirements, setSkillRequirements] = useState<Array<{ skill_id: number; min_level: number }>>([]);
+  const [selectedSkillId, setSelectedSkillId] = useState('');
+  const [selectedSkillLevel, setSelectedSkillLevel] = useState('3');
+  const [taskTypeId, setTaskTypeId] = useState('none');
+  const [taskFiles, setTaskFiles] = useState<File[]>([]);
 
   const [editingTask, setEditingTask] = useState<any>(null);
 
@@ -58,12 +66,34 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
     if (activeTab === 'overview' && userId) {
       fetchMyTasks();
       fetchReviews();
+      fetchContracts();
     } else if (activeTab === 'tasks') {
       fetchMyTasks();
     } else if (activeTab === 'review' && userId) {
       fetchReviews();
+      fetchContracts();
+    } else if (activeTab === 'contracts' && userId) {
+      fetchContracts();
     }
   }, [activeTab, userId]);
+
+  useEffect(() => {
+    const fetchCatalogs = async () => {
+      try {
+        const [domainsRes, skillsRes, typesRes] = await Promise.all([
+          fetch('http://localhost:8000/catalogs/domains'),
+          fetch('http://localhost:8000/catalogs/skills'),
+          fetch('http://localhost:8000/catalogs/task-types'),
+        ]);
+        if (domainsRes.ok) setDomains(await domainsRes.json());
+        if (skillsRes.ok) setSkillsCatalog(await skillsRes.json());
+        if (typesRes.ok) setTaskTypes(await typesRes.json());
+      } catch (error) {
+        console.error('Failed to fetch catalogs', error);
+      }
+    };
+    fetchCatalogs();
+  }, []);
 
   const fetchReviews = async () => {
     if (!userId) return;
@@ -77,6 +107,21 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       }
     } catch (error) {
       console.error('Failed to fetch reviews:', error);
+    }
+  };
+
+  const fetchContracts = async () => {
+    if (!userId) return;
+    try {
+      const response = await fetch('http://localhost:8000/contracts', {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setContracts(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch contracts:', error);
     }
   };
 
@@ -142,8 +187,76 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
     setDeadline(task.deadline ? task.deadline.slice(0, 16) : ''); // Format for datetime-local
     setRepeats(task.repeats.toString());
     setFileLink(task.file_link || '');
+    setTaskFiles([]);
+    setSelectedDomainIds(task.domain_requirements?.map((item: any) => item.domain_id) || []);
+    setSkillRequirements(
+      task.skill_requirements?.map((item: any) => ({
+        skill_id: item.skill_id,
+        min_level: item.min_level || 1,
+      })) || []
+    );
+    setTaskTypeId(task.type_assignment?.task_type_id ? String(task.type_assignment.task_type_id) : 'none');
 
     setActiveTab('create');
+  };
+
+  const toggleDomain = (domainId: number) => {
+    setSelectedDomainIds((prev) => (
+      prev.includes(domainId) ? prev.filter((id) => id !== domainId) : [...prev, domainId]
+    ));
+  };
+
+  const handleAddSkillRequirement = () => {
+    if (!selectedSkillId) return;
+    const skillId = parseInt(selectedSkillId, 10);
+    if (!skillId) return;
+    const level = parseInt(selectedSkillLevel, 10) || 3;
+    setSkillRequirements((prev) => {
+      const existing = prev.find((item) => item.skill_id === skillId);
+      if (existing) {
+        return prev.map((item) => (item.skill_id === skillId ? { ...item, min_level: level } : item));
+      }
+      return [...prev, { skill_id: skillId, min_level: level }];
+    });
+  };
+
+  const handleRemoveSkillRequirement = (skillId: number) => {
+    setSkillRequirements((prev) => prev.filter((item) => item.skill_id !== skillId));
+  };
+
+  const uploadTaskFiles = async (taskId: number) => {
+    if (taskFiles.length === 0) return;
+    for (const file of taskFiles) {
+      const formData = new FormData();
+      formData.append('upload_file', file);
+      const response = await fetch(`http://localhost:8000/files/tasks/${taskId}/attachments`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Не удалось загрузить файл');
+      }
+    }
+  };
+
+  const createContractForResponse = async (responseId: number) => {
+    const existing = contracts.find((contract) => contract.task_response_id === responseId);
+    if (existing) return existing;
+    const response = await fetch('http://localhost:8000/contracts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ task_response_id: responseId }),
+    });
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.detail || 'Не удалось создать контракт');
+    }
+    const contract = await response.json();
+    setContracts((prev) => [...prev, contract]);
+    return contract;
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -168,7 +281,10 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       price: parseFloat(price),
       deadline: deadline ? new Date(deadline).toISOString() : null,
       repeats: parseInt(repeats),
-      file_link: fileLink
+      file_link: fileLink,
+      domain_ids: selectedDomainIds,
+      skill_requirements: skillRequirements,
+      task_type_id: taskTypeId !== 'none' ? parseInt(taskTypeId, 10) : null,
     };
 
     try {
@@ -192,6 +308,8 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
         throw new Error(errData.detail || `Ошибка при ${editingTask ? 'обновлении' : 'создании'} задания`);
       }
 
+      const savedTask = await response.json();
+      await uploadTaskFiles(savedTask.id);
       setSuccess(editingTask ? 'Задание успешно обновлено!' : 'Задание успешно опубликовано!');
 
       // Reset form
@@ -204,6 +322,12 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       setDeadline('');
       setRepeats('1');
       setFileLink('');
+      setSelectedDomainIds([]);
+      setSkillRequirements([]);
+      setSelectedSkillId('');
+      setSelectedSkillLevel('3');
+      setTaskTypeId('none');
+      setTaskFiles([]);
       setEditingTask(null);
 
       // If was editing, maybe go back to tasks list? Or just stay here with success message.
@@ -245,6 +369,13 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       if (status === 'accepted' && refreshBalance) {
         refreshBalance();
       }
+      if (status === 'accepted') {
+        try {
+          await createContractForResponse(submissionId);
+        } catch (err: any) {
+          console.error('Failed to create contract:', err);
+        }
+      }
     } catch (error: any) {
       console.error('Error updating status:', error);
       alert(error.message || 'Ошибка при обновлении статуса');
@@ -259,11 +390,13 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+        <TabsList className="flex w-full max-w-4xl flex-wrap gap-2">
           <TabsTrigger value="overview">Обзор</TabsTrigger>
           <TabsTrigger value="tasks">Задания</TabsTrigger>
           <TabsTrigger value="create">Создать задание</TabsTrigger>
           <TabsTrigger value="review">Проверка работ</TabsTrigger>
+          <TabsTrigger value="contracts">Контракты</TabsTrigger>
+          <TabsTrigger value="experts">Эксперты</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -366,6 +499,14 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                                 <Eye className="w-4 h-4 mr-2" />
                                 Подробнее
                               </Button>
+                              <ProjectChat
+                                taskId={task.id}
+                                taskTitle={task.title}
+                                currentUserId={userId}
+                                triggerLabel="Чат"
+                                buttonVariant="outline"
+                                buttonSize="sm"
+                              />
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -407,6 +548,12 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                   setDeadline('');
                   setRepeats('1');
                   setFileLink('');
+                  setSelectedDomainIds([]);
+                  setSkillRequirements([]);
+                  setSelectedSkillId('');
+                  setSelectedSkillLevel('3');
+                  setTaskTypeId('none');
+                  setTaskFiles([]);
                   setActiveTab('create');
                 }}>
                   <Plus className="w-4 h-4 mr-2" />
@@ -569,6 +716,103 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
+                    <Label>Тип задания</Label>
+                    <Select value={taskTypeId} onValueChange={setTaskTypeId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Выберите тип задания" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Не выбран</SelectItem>
+                        {taskTypes.map((type) => (
+                          <SelectItem key={type.id} value={String(type.id)}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Области экспертизы</Label>
+                    <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3">
+                      {domains.length === 0 ? (
+                        <span className="text-sm text-gray-500">Нет доступных областей</span>
+                      ) : (
+                        domains.map((domain) => (
+                          <label key={domain.id} className="flex items-center gap-2 text-sm text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={selectedDomainIds.includes(domain.id)}
+                              onChange={() => toggleDomain(domain.id)}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                            {domain.name}
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Навыки и уровень владения</Label>
+                  <div className="flex flex-wrap gap-3 items-end">
+                    <div className="min-w-[220px] flex-1 space-y-2">
+                      <Select value={selectedSkillId} onValueChange={setSelectedSkillId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Выберите навык" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {skillsCatalog.map((skill) => (
+                            <SelectItem key={skill.id} value={String(skill.id)}>
+                              {skill.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-[140px] space-y-2">
+                      <Select value={selectedSkillLevel} onValueChange={setSelectedSkillLevel}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Уровень" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 5].map((level) => (
+                            <SelectItem key={level} value={String(level)}>
+                              {level}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button type="button" variant="outline" onClick={handleAddSkillRequirement}>
+                      Добавить
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {skillRequirements.length === 0 ? (
+                      <p className="text-sm text-gray-500">Навыки пока не добавлены</p>
+                    ) : (
+                      skillRequirements.map((item) => {
+                        const skillName = skillsCatalog.find((skill) => skill.id === item.skill_id)?.name || `Навык #${item.skill_id}`;
+                        return (
+                          <div key={item.skill_id} className="flex items-center justify-between border rounded-lg px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{skillName}</span>
+                              <Badge variant="outline">Уровень: {item.min_level}</Badge>
+                            </div>
+                            <Button type="button" variant="outline" size="sm" onClick={() => handleRemoveSkillRequirement(item.skill_id)}>
+                              Удалить
+                            </Button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     <Label htmlFor="reward">Вознаграждение (₽)</Label>
                     <Input
                       id="reward"
@@ -623,6 +867,21 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <Label>Файлы задания (PDF/JPG/PNG/ZIP)</Label>
+                  <Input
+                    type="file"
+                    multiple
+                    accept=".pdf,.jpg,.jpeg,.png,.zip"
+                    onChange={(e) => setTaskFiles(e.target.files ? Array.from(e.target.files) : [])}
+                  />
+                  {taskFiles.length > 0 && (
+                    <div className="text-sm text-gray-500">
+                      Загружено файлов: {taskFiles.length}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
                   <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? 'Сохранение...' : (editingTask ? 'Сохранить изменения' : 'Опубликовать задание')}
@@ -638,6 +897,8 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
           {selectedSubmission ? (
             <SubmissionReview
               submission={selectedSubmission}
+              contractId={contracts.find((contract) => contract.task_response_id === selectedSubmission.id)?.id}
+              revieweeId={selectedSubmission.performer_id}
               onBack={() => setSelectedSubmission(null)}
               onAccept={() => updateSubmissionStatus(selectedSubmission.id, 'accepted')}
               onReject={() => updateSubmissionStatus(selectedSubmission.id, 'rejected')}
@@ -657,6 +918,7 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                     .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
                     .map((submission) => {
                       const status = submissionStatuses[submission.id] || submission.status;
+                      const contract = contracts.find((item) => item.task_response_id === submission.id);
 
                       return (
                         <Card key={submission.id}>
@@ -698,6 +960,21 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  disabled={Boolean(contract)}
+                                  onClick={async () => {
+                                    try {
+                                      await createContractForResponse(submission.id);
+                                      setActiveTab('contracts');
+                                    } catch (err: any) {
+                                      alert(err.message || 'Не удалось создать контракт');
+                                    }
+                                  }}
+                                >
+                                  {contract ? 'Контракт создан' : 'Заключить контракт'}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
                                   className="text-green-600 border-green-600 hover:bg-green-50"
                                   onClick={() => updateSubmissionStatus(submission.id, 'accepted')}
                                 >
@@ -723,6 +1000,44 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Contracts Tab */}
+        <TabsContent value="contracts" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Контракты</CardTitle>
+              <CardDescription>История заключенных контрактов и их статусы</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {contracts.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">Контракты пока не созданы</div>
+              ) : (
+                <div className="space-y-4">
+                  {contracts.map((contract) => {
+                    const taskTitle = myTasks.find((task) => task.id === contract.task_id)?.title || `Задание #${contract.task_id}`;
+                    return (
+                      <div key={contract.id} className="border rounded-lg p-4 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">{taskTitle}</h4>
+                          <Badge variant="outline">{contract.status}</Badge>
+                        </div>
+                        <div className="text-sm text-gray-600 space-y-1">
+                          <p>Исполнитель ID: {contract.performer_id}</p>
+                          <p>Стоимость: {contract.agreed_price ?? '—'} ₽</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Experts Tab */}
+        <TabsContent value="experts" className="space-y-6">
+          <ExpertSearch />
         </TabsContent>
       </Tabs>
     </div >

@@ -10,14 +10,18 @@ from endpoints.contract_endpoints import router as contracts_router
 from endpoints.review_endpoints import router as reviews_router
 from endpoints.file_endpoints import router as files_router
 from endpoints.search_endpoints import router as search_router
+from endpoints.chat_endpoints import router as chat_router
+from endpoints.admin_endpoints import router as admin_router
 from auth import get_current_user
 from database import engine, Base, get_db
+from models.task_models import Task, TaskResponse
 import models.user_models
 import models.task_models
 import models.catalog_models
 import models.profile_models
 import models.contract_models
 import models.review_models
+import models.chat_models
 import uvicorn
 
 app = FastAPI(
@@ -29,7 +33,12 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React frontend
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,6 +55,8 @@ app.include_router(contracts_router)
 app.include_router(reviews_router)
 app.include_router(files_router)
 app.include_router(search_router)
+app.include_router(chat_router)
+app.include_router(admin_router)
 
 
 @app.on_event("startup")
@@ -59,6 +70,16 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+@app.get("/health/details")
+def health_details(db: Session = Depends(get_db)):
+    task_count = db.query(Task).count()
+    response_count = db.query(TaskResponse).count()
+    return {
+        "status": "healthy",
+        "tasks": task_count,
+        "task_responses": response_count,
+    }
 
 if __name__ == "__main__":
         uvicorn.run(

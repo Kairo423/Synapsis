@@ -44,6 +44,11 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=f"User not found with id: {user_id}"
             )
+        if user.is_active is False:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Пользователь заблокирован"
+            )
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(

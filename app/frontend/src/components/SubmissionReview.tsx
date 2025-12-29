@@ -1,16 +1,75 @@
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Textarea } from './ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ArrowLeft, CheckCircle2, XCircle, FileText, ExternalLink } from 'lucide-react';
 
 interface SubmissionReviewProps {
   submission: any;
+  contractId?: number;
+  revieweeId?: number;
   onBack: () => void;
   onAccept: () => void;
   onReject: () => void;
 }
 
-export function SubmissionReview({ submission, onBack, onAccept, onReject }: SubmissionReviewProps) {
+export function SubmissionReview({ submission, contractId, revieweeId, onBack, onAccept, onReject }: SubmissionReviewProps) {
+  const [deliverables, setDeliverables] = useState<any[]>([]);
+  const [reviewRating, setReviewRating] = useState('5');
+  const [reviewComment, setReviewComment] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchDeliverables = async () => {
+      if (!submission?.id) return;
+      try {
+        const response = await fetch(`http://localhost:8000/files/responses/${submission.id}/deliverables`, {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setDeliverables(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch deliverables', error);
+      }
+    };
+    fetchDeliverables();
+  }, [submission?.id]);
+
+  const handleSubmitReview = async () => {
+    if (!contractId || !revieweeId) return;
+    setIsSubmittingReview(true);
+    setReviewSuccess(null);
+    try {
+      const response = await fetch('http://localhost:8000/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          contract_id: contractId,
+          reviewee_id: revieweeId,
+          rating: parseInt(reviewRating, 10),
+          comment: reviewComment,
+        }),
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Не удалось оставить отзыв');
+      }
+      setReviewSuccess('Спасибо! Отзыв сохранен.');
+      setReviewComment('');
+    } catch (error: any) {
+      alert(error.message || 'Ошибка при отправке отзыва');
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(price);
   };
@@ -89,6 +148,27 @@ export function SubmissionReview({ submission, onBack, onAccept, onReject }: Sub
             </a>
           )}
 
+          {deliverables.length > 0 && (
+            <div className="mt-8 space-y-3">
+              <h3 className="font-semibold text-slate-900">Файлы результата</h3>
+              {deliverables.map((item: any) => (
+                <a
+                  key={item.id}
+                  href={`http://localhost:8000/files/deliverables/${item.id}/download`}
+                  className="block border rounded-xl p-4 flex items-center gap-4 hover:border-blue-500 hover:bg-blue-50/10 transition-colors"
+                >
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center shrink-0 text-blue-600">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{item.filename}</div>
+                    <div className="text-sm text-gray-500">Скачать файл</div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+
           {/* Actions Footer */}
           <div className="flex gap-3 justify-end pt-6 mt-6 border-t border-gray-100">
             <Button
@@ -107,6 +187,57 @@ export function SubmissionReview({ submission, onBack, onAccept, onReject }: Sub
               Принять работу
             </Button>
           </div>
+
+          {contractId && revieweeId && (
+            <div className="pt-6 border-t border-gray-100">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="w-full">
+                    Оставить отзыв
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[460px]">
+                  <DialogHeader>
+                    <DialogTitle>Отзыв об исполнителе</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Оценка</label>
+                      <Select value={reviewRating} onValueChange={setReviewRating}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="5" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[5, 4, 3, 2, 1].map((value) => (
+                            <SelectItem key={value} value={String(value)}>
+                              {value}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Комментарий</label>
+                      <Textarea
+                        value={reviewComment}
+                        onChange={(e) => setReviewComment(e.target.value)}
+                        placeholder="Опишите качество работы"
+                        rows={4}
+                      />
+                    </div>
+                    {reviewSuccess && (
+                      <div className="text-sm text-green-600">{reviewSuccess}</div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handleSubmitReview} disabled={isSubmittingReview}>
+                      {isSubmittingReview ? 'Отправка...' : 'Отправить отзыв'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

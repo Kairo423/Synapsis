@@ -7,6 +7,7 @@ import { AnnotatorOnboarding } from './components/AnnotatorOnboarding';
 import { ClientOnboarding } from './components/ClientOnboarding';
 import { AnnotatorDashboard } from './components/AnnotatorDashboard';
 import { ClientDashboard } from './components/ClientDashboard';
+import { AdminDashboard } from './components/AdminDashboard';
 import { TaskFeed } from './components/TaskFeed';
 import { TaskExecution } from './components/TaskExecution';
 import { Button } from './components/ui/button';
@@ -17,7 +18,7 @@ import { Label } from './components/ui/label';
 import { LogOut, Plus, DollarSign } from 'lucide-react';
 
 type AuthView = 'login' | 'register' | 'forgot-password';
-type View = 'home' | 'executor' | 'provider';
+type View = 'home' | 'executor' | 'provider' | 'admin';
 type OnboardingStatus = 'not-started' | 'in-progress' | 'completed';
 
 export interface UserData {
@@ -100,6 +101,8 @@ export default function App() {
             setCurrentView('executor');
           } else if (data.role === 'provider') {
             setCurrentView('provider');
+          } else if (data.role === 'admin') {
+            setCurrentView('admin');
           }
         }
       } catch (error) {
@@ -122,6 +125,8 @@ export default function App() {
       setCurrentView('executor');
     } else if (data.role === 'provider') {
       setCurrentView('provider');
+    } else if (data.role === 'admin') {
+      setCurrentView('admin');
     } else {
       setCurrentView('home');
     }
@@ -139,6 +144,7 @@ export default function App() {
     setIsAuthenticated(true);
     if (userData.role === 'executor') setCurrentView('executor');
     if (userData.role === 'provider') setCurrentView('provider');
+    if (userData.role === 'admin') setCurrentView('admin');
   };
 
   const handleTopUp = async () => {
@@ -399,7 +405,7 @@ export default function App() {
         {currentView === 'executor' && userData.role === 'executor' && (
           <div className="container mx-auto px-4 py-8">
             <Tabs defaultValue="dashboard" className="w-full">
-              <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsList className="flex w-full max-w-md flex-wrap gap-2">
                 <TabsTrigger value="dashboard">Личный кабинет</TabsTrigger>
                 <TabsTrigger value="tasks">Лента заданий</TabsTrigger>
               </TabsList>
@@ -422,6 +428,8 @@ export default function App() {
         {currentView === 'provider' && userData.role === 'provider' && (
           <ClientDashboard userName={userData.name} userId={userData.id} refreshBalance={refreshBalance} />
         )}
+
+        {currentView === 'admin' && userData.role === 'admin' && <AdminDashboard />}
       </main>
     </div>
   );

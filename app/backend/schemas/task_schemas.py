@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 from datetime import datetime
 from typing import Optional, List
 
@@ -67,6 +67,11 @@ class TaskResponse(TaskBase):
     domain_requirements: List[TaskDomainRequirementRead] = Field(default_factory=list)
     skill_requirements: List[TaskSkillRequirementRead] = Field(default_factory=list)
     type_assignment: Optional[TaskTypeAssignmentRead] = None
+
+    @computed_field
+    @property
+    def reward(self) -> float:
+        return self.price
 
     class Config:
         from_attributes = True
