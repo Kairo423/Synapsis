@@ -114,13 +114,13 @@ async def get_responses_by_provider(
     Просмотр всех откликов на задачи конкретного поставщика.
     Только для самого поставщика.
     """
-    if current_user.role != "provider":
+    if current_user.role not in ["provider", "customer", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Только поставщики могут просматривать отклики на свои задачи"
         )
     
-    if current_user.id != provider_id:
+    if current_user.role != "admin" and current_user.id != provider_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Вы можете просматривать только отклики на свои задачи"
@@ -206,7 +206,7 @@ async def update_response_status(
     Только для поставщиков (владельцев задачи).
     При принятии работы проверяется баланс поставщика и списывается оплата в пользу исполнителя.
     """
-    if current_user.role != "provider":
+    if current_user.role not in ["provider", "customer", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Только поставщики могут менять статус откликов"
@@ -222,7 +222,7 @@ async def update_response_status(
 
     # Проверяем, что задача принадлежит текущему поставщику
     task = db.query(Task).filter(Task.id == resp.task_id).first()
-    if not task or task.customer_id != current_user.id:
+    if not task or (current_user.role != "admin" and task.customer_id != current_user.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Вы не можете менять статус откликов чужих задач"

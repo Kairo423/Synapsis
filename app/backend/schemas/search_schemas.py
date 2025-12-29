@@ -1,0 +1,12 @@
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+class ExpertSearchResult(BaseModel):
+    user_id: int
+    name: str
+    main_domain_id: Optional[int] = None
+    rate: Optional[float] = None
+    rating: float = 0.0
+    total_reviews: int = 0
+    skill_ids: List[int] = Field(default_factory=list)
+

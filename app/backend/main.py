@@ -4,10 +4,20 @@ from sqlalchemy.orm import Session
 from endpoints.user_endpoints import router as users_router, auth_router
 from endpoints.task_endpoints import router as tasks_router
 from endpoints.task_response_endpoints import router as task_responses_router
+from endpoints.catalog_endpoints import router as catalogs_router
+from endpoints.profile_endpoints import router as profiles_router
+from endpoints.contract_endpoints import router as contracts_router
+from endpoints.review_endpoints import router as reviews_router
+from endpoints.file_endpoints import router as files_router
+from endpoints.search_endpoints import router as search_router
 from auth import get_current_user
 from database import engine, Base, get_db
 import models.user_models
 import models.task_models
+import models.catalog_models
+import models.profile_models
+import models.contract_models
+import models.review_models
 import uvicorn
 
 app = FastAPI(
@@ -30,6 +40,12 @@ app.include_router(users_router)
 app.include_router(auth_router)
 app.include_router(tasks_router)
 app.include_router(task_responses_router)
+app.include_router(catalogs_router)
+app.include_router(profiles_router)
+app.include_router(contracts_router)
+app.include_router(reviews_router)
+app.include_router(files_router)
+app.include_router(search_router)
 
 
 @app.on_event("startup")
