@@ -11,6 +11,8 @@ class ExpertSearchResult(BaseModel):
     name: str
     main_domain_id: Optional[int] = None
     rate: Optional[float] = None
+    experience_years: Optional[int] = None
+    verification_document_url: Optional[str] = None
     rating: float = 0.0
     total_reviews: int = 0
     skill_ids: List[int] = Field(default_factory=list)

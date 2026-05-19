@@ -22,6 +22,7 @@ export function AnnotatorOnboarding({ userName, onComplete }: AnnotatorOnboardin
     experience: '',
     expertise: [] as string[],
     portfolio: '',
+    verificationDocumentUrl: '',
     bio: '',
   });
   const [selectedExpertise, setSelectedExpertise] = useState('');
@@ -105,12 +106,30 @@ export function AnnotatorOnboarding({ userName, onComplete }: AnnotatorOnboardin
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const response = await fetch('http://localhost:8000/experts/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          experience_years: formData.experience ? parseInt(formData.experience, 10) : null,
+          verification_document_url: formData.verificationDocumentUrl || null,
+          bio: formData.bio,
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Не удалось сохранить профиль');
+      }
       onComplete();
-    }, 1500);
+    } catch (error) {
+      console.error(error);
+      alert('Ошибка при сохранении профиля');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const progress = (step / 2) * 100;
@@ -247,17 +266,28 @@ export function AnnotatorOnboarding({ userName, onComplete }: AnnotatorOnboardin
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="verificationDocumentUrl">Документ, подтверждающий квалификацию</Label>
+                <Input
+                  id="verificationDocumentUrl"
+                  type="url"
+                  placeholder="https://example.com/diploma.pdf"
+                  value={formData.verificationDocumentUrl}
+                  onChange={(e) => setFormData({ ...formData, verificationDocumentUrl: e.target.value })}
+                />
+                <p className="text-sm text-gray-500">
+                  Ссылка на изображение или PDF диплома, сертификата или другого подтверждающего документа
+                </p>
+              </div>
+
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                 <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                 <p className="text-sm text-gray-600 mb-2">
-                  Загрузите документы, подтверждающие квалификацию
+                  Документы можно приложить ссылкой выше
                 </p>
                 <p className="text-xs text-gray-500 mb-4">
-                  Дипломы, сертификаты, рекомендательные письма (опционально)
+                  Поддерживаются ссылки на изображения и PDF-файлы
                 </p>
-                <Button variant="outline" size="sm">
-                  Выбрать файлы
-                </Button>
               </div>
 
               <div className="flex gap-3">

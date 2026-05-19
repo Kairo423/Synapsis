@@ -837,6 +837,27 @@ export function AdminDashboard() {
                   <div className="font-medium mb-1">Профиль эксперта</div>
                   <div>Основная область: {profileDialog.profile.main_domain_id ?? '—'}</div>
                   <div>Ставка: {profileDialog.profile.rate ?? '—'} ₽</div>
+                  <div>
+                    Опыт:{' '}
+                    {profileDialog.profile.experience_years !== null && profileDialog.profile.experience_years !== undefined
+                      ? `${profileDialog.profile.experience_years} лет`
+                      : '—'}
+                  </div>
+                  <div>
+                    Документ:{' '}
+                    {profileDialog.profile.verification_document_url ? (
+                      <a
+                        href={profileDialog.profile.verification_document_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-600 hover:text-blue-700"
+                      >
+                        открыть
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </div>
                   <div>Био: {profileDialog.profile.bio || '—'}</div>
                 </div>
               )}

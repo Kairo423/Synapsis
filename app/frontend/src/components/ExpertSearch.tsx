@@ -4,7 +4,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Star } from 'lucide-react';
+import { ExternalLink, Star } from 'lucide-react';
 import { fetchWithRetry } from '../utils/api';
 
 interface ExpertResult {
@@ -12,6 +12,8 @@ interface ExpertResult {
   name: string;
   main_domain_id: number | null;
   rate: number | null;
+  experience_years: number | null;
+  verification_document_url: string | null;
   rating: number;
   total_reviews: number;
   skill_ids: number[];
@@ -134,6 +136,33 @@ export function ExpertSearch() {
             {expertProfile?.bio && (
               <p className="text-sm text-slate-700">{expertProfile.bio}</p>
             )}
+            <div className="grid sm:grid-cols-2 gap-3 text-sm text-slate-700">
+              <div className="border rounded-lg p-3">
+                <div className="text-xs text-slate-400 mb-1">Опыт работы</div>
+                <div>
+                  {(expertProfile?.experience_years ?? selectedExpert.experience_years) !== null &&
+                  (expertProfile?.experience_years ?? selectedExpert.experience_years) !== undefined
+                    ? `${expertProfile?.experience_years ?? selectedExpert.experience_years} лет`
+                    : '—'}
+                </div>
+              </div>
+              <div className="border rounded-lg p-3">
+                <div className="text-xs text-slate-400 mb-1">Документ</div>
+                {expertProfile?.verification_document_url || selectedExpert.verification_document_url ? (
+                  <a
+                    href={expertProfile?.verification_document_url || selectedExpert.verification_document_url || '#'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Открыть
+                  </a>
+                ) : (
+                  <span>—</span>
+                )}
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2">
               {expertSkills.map((item: any) => (
                 <Badge key={`expert-skill-${item.skill_id}`} variant="outline">
@@ -278,6 +307,14 @@ export function ExpertSearch() {
                         ))}
                       </div>
                       <span>{expert.rating.toFixed(1)} · {expert.total_reviews} отзывов</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-sm text-slate-600">
+                      <Badge variant="outline">
+                        Опыт: {expert.experience_years !== null && expert.experience_years !== undefined ? `${expert.experience_years} лет` : '—'}
+                      </Badge>
+                      {expert.verification_document_url && (
+                        <Badge variant="outline">Документ приложен</Badge>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {(expert.skills && expert.skills.length > 0

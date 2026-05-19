@@ -5,6 +5,8 @@ from typing import Optional, List
 class ExpertProfileBase(BaseModel):
     main_domain_id: Optional[int] = None
     rate: Optional[float] = None
+    experience_years: Optional[int] = Field(default=None, ge=0, le=80)
+    verification_document_url: Optional[str] = None
     bio: Optional[str] = None
 
 class ExpertProfileUpdate(ExpertProfileBase):

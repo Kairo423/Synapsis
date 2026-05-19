@@ -8,7 +8,7 @@ import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Textarea } from './ui/textarea';
-import { Clock, DollarSign, Star, Pencil, Check } from 'lucide-react';
+import { Clock, DollarSign, Star, Pencil, Check, ExternalLink } from 'lucide-react';
 import { ProjectChat } from './ProjectChat';
 import { fetchWithRetry } from '../utils/api';
 
@@ -23,6 +23,8 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
   const [profileDraft, setProfileDraft] = useState({
     main_domain_id: null as number | null,
     rate: '',
+    experience_years: '',
+    verification_document_url: '',
     bio: '',
   });
   const [skillSelections, setSkillSelections] = useState<Array<{ skill_id: number; level: number }>>([]);
@@ -69,6 +71,8 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
             setProfileDraft({
               main_domain_id: data.main_domain_id ?? null,
               rate: data.rate !== null && data.rate !== undefined ? String(data.rate) : '',
+              experience_years: data.experience_years !== null && data.experience_years !== undefined ? String(data.experience_years) : '',
+              verification_document_url: data.verification_document_url || '',
               bio: data.bio || '',
             });
           }
@@ -213,6 +217,8 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
         body: JSON.stringify({
           main_domain_id: profileDraft.main_domain_id,
           rate: profileDraft.rate ? parseFloat(profileDraft.rate) : null,
+          experience_years: profileDraft.experience_years ? parseInt(profileDraft.experience_years, 10) : null,
+          verification_document_url: profileDraft.verification_document_url || null,
           bio: profileDraft.bio,
         }),
       });
@@ -511,7 +517,41 @@ export function AnnotatorDashboard({ userName, userId, refreshBalance }: { userN
                 placeholder="Например: 1500"
               />
             </div>
+            <div className="space-y-2">
+              <Label>Опыт работы (лет)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="80"
+                step="1"
+                value={profileDraft.experience_years}
+                onChange={(e) => setProfileDraft((prev) => ({ ...prev, experience_years: e.target.value }))}
+                placeholder="Например: 3"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Подтверждающий документ</Label>
+              <Input
+                type="url"
+                value={profileDraft.verification_document_url}
+                onChange={(e) => setProfileDraft((prev) => ({ ...prev, verification_document_url: e.target.value }))}
+                placeholder="https://example.com/diploma.pdf"
+              />
+            </div>
           </div>
+          {profileDraft.verification_document_url && (
+            <div className="mt-3">
+              <a
+                href={profileDraft.verification_document_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Открыть подтверждающий документ
+              </a>
+            </div>
+          )}
           <div className="space-y-2 mt-4">
             <Label>Био</Label>
             <Textarea

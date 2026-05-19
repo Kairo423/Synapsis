@@ -107,6 +107,8 @@ async def search_experts(
         User.name.label("name"),
         ExpertProfile.main_domain_id.label("main_domain_id"),
         ExpertProfile.rate.label("rate"),
+        ExpertProfile.experience_years.label("experience_years"),
+        ExpertProfile.verification_document_url.label("verification_document_url"),
         func.coalesce(rating_subq.c.avg_rating, 0.0).label("rating"),
         func.coalesce(rating_subq.c.total_reviews, 0).label("total_reviews")
     ).outerjoin(ExpertProfile, ExpertProfile.user_id == User.id
@@ -152,6 +154,8 @@ async def search_experts(
             name=row.name,
             main_domain_id=row.main_domain_id,
             rate=row.rate,
+            experience_years=row.experience_years,
+            verification_document_url=row.verification_document_url,
             rating=float(row.rating or 0.0),
             total_reviews=int(row.total_reviews or 0),
             skill_ids=[item[0] for item in skills_map.get(row.user_id, [])],
