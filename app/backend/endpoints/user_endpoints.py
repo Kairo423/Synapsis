@@ -9,7 +9,7 @@ from schemas.user_schemas import (
 )
 import random
 import string
-from utils.email import send_reset_code
+from utils.email import is_smtp_configured, send_reset_code
 from typing import List
 from auth import get_current_user, role_required, security, config
 
@@ -357,13 +357,17 @@ async def request_password_reset(request: PasswordResetRequest, db: Session = De
     db.commit()
     
     # Отправка email
+    delivery = "email" if is_smtp_configured() else "log"
     if not send_reset_code(request.email, code):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Ошибка при отправке письма. Проверьте настройки SMTP."
         )
     
-    return {"message": "Код подтверждения отправлен на почту"}
+    return {
+        "message": "Код подтверждения отправлен на почту",
+        "delivery": delivery,
+    }
 
 @auth_router.post("/password-reset/confirm")
 async def confirm_password_reset(confirm: PasswordResetConfirm, db: Session = Depends(get_db)):

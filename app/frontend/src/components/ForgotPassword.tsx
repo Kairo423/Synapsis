@@ -31,11 +31,16 @@ export function ForgotPassword({ onNavigate }: ForgotPasswordProps) {
         body: JSON.stringify({ email }),
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (response.ok) {
         setStep('confirm');
-        setMessage('Код подтверждения отправлен на вашу почту');
+        setMessage(
+          data.delivery === 'log'
+            ? 'SMTP не настроен. Код подтверждения выведен в логах backend-контейнера.'
+            : 'Код подтверждения отправлен на вашу почту'
+        );
       } else {
-        const data = await response.json();
         setError(data.detail || 'Ошибка при запросе кода');
       }
     } catch (err) {

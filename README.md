@@ -20,6 +20,31 @@ To launch bash inside docker container:
 `docker-compose exec postgres bash`
 and to launch psql inside postgres container:
 `psql -h postgres -U $DB_USER -d $DB_NAME -p 5432`
+
+# Password reset emails
+
+Password reset uses SMTP settings from `.env`. Fill in these variables and restart the backend container:
+
+```env
+SMTP_HOST=smtp.yandex.ru
+SMTP_PORT=587
+SMTP_USER=your-mailbox@yandex.ru
+SMTP_PASSWORD=your-app-password
+SMTP_FROM=your-mailbox@yandex.ru
+SMTP_FROM_NAME=Synapsis
+SMTP_USE_TLS=true
+SMTP_USE_SSL=false
+SMTP_TIMEOUT=10
+```
+
+For Gmail use `smtp.gmail.com` with port `587` and an app password. For Mail.ru use `smtp.mail.ru`, port `465`, `SMTP_USE_SSL=true`, and `SMTP_USE_TLS=false`.
+
+After changing `.env`, run:
+
+```powershell
+docker compose up -d --force-recreate backend
+```
+
 # Start frontend
 
 Run `cd app/frontend` to change directory. 
