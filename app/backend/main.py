@@ -18,8 +18,9 @@ from endpoints.chat_endpoints import router as chat_router
 from endpoints.admin_endpoints import router as admin_router
 from endpoints.payments_endpoints import router as payments_router
 from auth import get_current_user
-from database import engine, Base, get_db
+from database import engine, Base, get_db, SessionLocal
 from models.task_models import Task, TaskResponse
+from seed_data import seed_catalogs
 import models.user_models
 import models.task_models
 import models.catalog_models
@@ -89,6 +90,11 @@ app.include_router(payments_router)
 @app.on_event("startup")
 def startup_event():
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_catalogs(db)
+    finally:
+        db.close()
 
 @app.get("/")
 def read_root():

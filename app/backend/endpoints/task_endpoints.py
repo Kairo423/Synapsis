@@ -65,7 +65,7 @@ async def create_task(task_data: TaskCreate, current_user = Depends(get_current_
         raise HTTPException(status_code=400, detail="Недопустимый статус задания")
 
     task = Task(
-        **task_data.dict(exclude={"domain_ids", "skill_requirements", "task_type_id"}),
+        **task_data.dict(exclude={"domain_ids", "skill_requirements", "task_type_id", "status"}),
         customer_id=current_user.id,
         status=task_data.status or "new"
     )

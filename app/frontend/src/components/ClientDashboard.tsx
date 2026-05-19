@@ -28,6 +28,17 @@ import {
   Star,
 } from 'lucide-react';
 
+const CATEGORY_DOMAIN_NAMES: Record<string, string[]> = {
+  Медицина: ['Медицина'],
+  Право: ['Право'],
+  Лингвистика: ['Лингвистика'],
+  Финансы: ['Финансы'],
+};
+
+const KNOWN_CATEGORY_DOMAIN_NAMES = new Set(
+  Object.values(CATEGORY_DOMAIN_NAMES).reduce<string[]>((acc, names) => acc.concat(names), [])
+);
+
 export function ClientDashboard({ userName, userId, refreshBalance }: { userName?: string; userId?: number; refreshBalance?: () => void }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
@@ -73,10 +84,39 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
   const [networkError, setNetworkError] = useState('');
 
   const canTogglePublish = !editingTask || ['draft', 'published', 'new'].includes(editingTask.status);
+  const categoryDomainNames = CATEGORY_DOMAIN_NAMES[category] || [];
+  const filteredDomains = category === 'other'
+    ? domains.filter((domain) => !KNOWN_CATEGORY_DOMAIN_NAMES.has(domain.name))
+    : categoryDomainNames.length > 0
+      ? domains.filter((domain) => categoryDomainNames.includes(domain.name))
+      : [];
+  const selectedDomainIdSet = new Set(selectedDomainIds);
+  const filteredSkillsCatalog = selectedDomainIds.length > 0
+    ? skillsCatalog.filter((skill) => selectedDomainIdSet.has(skill.domain_id))
+    : [];
 
   // My Tasks state
   const [myTasks, setMyTasks] = useState<any[]>([]);
   const [isLoadingMyTasks, setIsLoadingMyTasks] = useState(false);
+
+  useEffect(() => {
+    if (!category) {
+      setSelectedDomainIds([]);
+      return;
+    }
+
+    const allowedDomainIds = new Set(filteredDomains.map((domain) => domain.id));
+    setSelectedDomainIds((prev) => prev.filter((id) => allowedDomainIds.has(id)));
+  }, [category, domains]);
+
+  useEffect(() => {
+    const allowedSkillIds = new Set(filteredSkillsCatalog.map((skill) => skill.id));
+    setSkillRequirements((prev) => prev.filter((item) => allowedSkillIds.has(item.skill_id)));
+
+    if (selectedSkillId && !allowedSkillIds.has(Number(selectedSkillId))) {
+      setSelectedSkillId('');
+    }
+  }, [selectedDomainIds, skillsCatalog, selectedSkillId]);
 
   useEffect(() => {
     if (activeTab === 'overview' && userId) {
@@ -737,7 +777,7 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                             {task.status === 'in_progress' && 'В работе'}
                             {task.status === 'completed' && 'Завершено'}
                             {task.status === 'review' && 'На проверке'}
-                            {!['new', 'in_progress', 'completed', 'review'].includes(task.status) && task.status}
+                            {!['draft', 'new', 'published', 'in_progress', 'completed', 'review', 'cancelled', 'blocked'].includes(task.status) && task.status}
                           </Badge>
                         </div>
                         <p className="text-sm text-gray-500 mt-1">
@@ -898,10 +938,12 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                   <div className="space-y-2">
                     <Label>Области экспертизы</Label>
                     <div className="grid grid-cols-2 gap-2 rounded-lg border border-gray-200 p-3">
-                      {domains.length === 0 ? (
+                      {!category ? (
+                        <span className="text-sm text-gray-500">Сначала выберите специализацию</span>
+                      ) : filteredDomains.length === 0 ? (
                         <span className="text-sm text-gray-500">Нет доступных областей</span>
                       ) : (
-                        domains.map((domain) => (
+                        filteredDomains.map((domain) => (
                           <label key={domain.id} className="flex items-center gap-2 text-sm text-gray-700">
                             <input
                               type="checkbox"
@@ -921,12 +963,16 @@ export function ClientDashboard({ userName, userId, refreshBalance }: { userName
                   <Label>Навыки и уровень владения</Label>
                   <div className="flex flex-wrap gap-3 items-end">
                     <div className="min-w-[220px] flex-1 space-y-2">
-                      <Select value={selectedSkillId} onValueChange={setSelectedSkillId}>
+                      <Select
+                        value={selectedSkillId}
+                        onValueChange={setSelectedSkillId}
+                        disabled={selectedDomainIds.length === 0 || filteredSkillsCatalog.length === 0}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Выберите навык" />
                         </SelectTrigger>
                         <SelectContent>
-                          {skillsCatalog.map((skill) => (
+                          {filteredSkillsCatalog.map((skill) => (
                             <SelectItem key={skill.id} value={String(skill.id)}>
                               {skill.name}
                             </SelectItem>

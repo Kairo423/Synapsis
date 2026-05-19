@@ -30,6 +30,13 @@ interface TaskFeedProps {
   onTaskSelect: (task: Task) => void;
 }
 
+const CATEGORY_DOMAIN_NAMES: Record<string, string[]> = {
+  Медицина: ['Медицина'],
+  Право: ['Право'],
+  Лингвистика: ['Лингвистика'],
+  Финансы: ['Финансы'],
+};
+
 export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [myResponses, setMyResponses] = useState<any[]>([]);
@@ -64,6 +71,32 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
   const [resultLink, setResultLink] = useState('');
   const [resultFile, setResultFile] = useState<File | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const categoryDomainNames = CATEGORY_DOMAIN_NAMES[categoryFilter] || [];
+  const filteredDomains = categoryFilter === 'all'
+    ? domains
+    : categoryDomainNames.length > 0
+      ? domains.filter((domain) => categoryDomainNames.includes(domain.name))
+      : [];
+  const filteredSkillsCatalog = domainFilter === 'all'
+    ? skillsCatalog
+    : skillsCatalog.filter((skill) => skill.domain_id === Number(domainFilter));
+
+  useEffect(() => {
+    if (categoryFilter === 'all') return;
+
+    const allowedDomainIds = new Set(filteredDomains.map((domain) => String(domain.id)));
+    if (domainFilter !== 'all' && !allowedDomainIds.has(domainFilter)) {
+      setDomainFilter('all');
+      setSkillFilter('all');
+    }
+  }, [categoryFilter, domains, domainFilter]);
+
+  useEffect(() => {
+    const allowedSkillIds = new Set(filteredSkillsCatalog.map((skill) => String(skill.id)));
+    if (skillFilter !== 'all' && !allowedSkillIds.has(skillFilter)) {
+      setSkillFilter('all');
+    }
+  }, [domainFilter, skillsCatalog, skillFilter]);
 
   useEffect(() => {
     const fetchCatalogs = async () => {
@@ -627,7 +660,7 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Любая область</SelectItem>
-                    {domains.map((domain) => (
+                    {filteredDomains.map((domain) => (
                       <SelectItem key={domain.id} value={String(domain.id)}>
                         {domain.name}
                       </SelectItem>
@@ -641,7 +674,7 @@ export function TaskFeed({ onTaskSelect }: TaskFeedProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Любой навык</SelectItem>
-                    {skillsCatalog.map((skill) => (
+                    {filteredSkillsCatalog.map((skill) => (
                       <SelectItem key={skill.id} value={String(skill.id)}>
                         {skill.name}
                       </SelectItem>
